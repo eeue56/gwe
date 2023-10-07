@@ -4,20 +4,20 @@ pub mod blocks {
         tokenizer::tokenizer::{tokenize, Token},
     };
 
-    #[derive(PartialEq, Debug)]
+    #[derive(PartialEq, Debug, Clone)]
     pub struct Param {
         pub name: String,
         pub type_name: String,
     }
 
-    #[derive(PartialEq, Debug)]
+    #[derive(PartialEq, Debug, Clone)]
     pub struct Function {
         pub name: String,
         pub expressions: Vec<Expression>,
         pub params: Vec<Param>,
     }
 
-    #[derive(PartialEq, Debug)]
+    #[derive(PartialEq, Debug, Clone)]
     pub enum Block {
         FunctionBlock(Function),
     }

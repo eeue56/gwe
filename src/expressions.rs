@@ -1,7 +1,7 @@
 use crate::tokenizer::tokenizer::Token;
 use std::slice::Iter;
 
-#[derive(PartialEq, Debug)]
+#[derive(PartialEq, Debug, Clone)]
 pub enum Expression {
     Number {
         value: String,
