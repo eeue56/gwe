@@ -7,9 +7,32 @@ mod tokenizer;
 
 #[derive(PartialEq, Debug)]
 pub enum Expression {
-    Number { value: String },
-    Variable { body: String },
-    Return { expression: Box<Expression> },
+    Number {
+        value: String,
+    },
+    Variable {
+        body: String,
+    },
+    Return {
+        expression: Box<Expression>,
+    },
+    LocalAssign {
+        name: String,
+        type_name: String,
+        expression: Box<Expression>,
+    },
+    GlobalAssign {
+        name: String,
+        type_name: String,
+        expression: Box<Expression>,
+    },
+    Addition {
+        left: Box<Expression>,
+        right: Box<Expression>,
+    },
+    String {
+        body: String,
+    },
 }
 
 #[derive(PartialEq, Debug)]
@@ -43,6 +66,37 @@ fn into_blocks(body: String) -> Vec<String> {
 }
 
 fn parse_expression<'a>(tokens: &mut Iter<'a, Token>) -> Result<Expression, String> {
+    println!("Has addition {}", false);
+    let has_addition = tokens.clone().any(|t| t == &Token::Plus);
+    let has_assign = tokens.clone().any(|t| t == &Token::Assign);
+
+    println!("Has addition {}", has_addition);
+
+    if has_addition && !has_assign {
+        println!("tokens: {:?}", tokens);
+        let sides: Vec<Vec<Token>> = tokens
+            .clone()
+            .as_slice()
+            .splitn(2, |token| token == &Token::Plus)
+            .map(|v| v.to_vec())
+            .collect();
+
+        let left_tokens = &mut sides[0].iter();
+        let right_tokens = &mut sides[1].iter();
+        println!("Sides: {:?}", sides);
+
+        return match parse_expression(left_tokens) {
+            Ok(left) => match parse_expression(right_tokens) {
+                Ok(right) => Ok(Expression::Addition {
+                    left: Box::new(left),
+                    right: Box::new(right),
+                }),
+                Err(err) => Err(err),
+            },
+            Err(err) => Err(err),
+        };
+    }
+
     while let token = tokens.next() {
         match token {
             Some(Token::Return) => {
@@ -50,19 +104,106 @@ fn parse_expression<'a>(tokens: &mut Iter<'a, Token>) -> Result<Expression, Stri
                     expression: Box::new(exp),
                 })
             }
+            Some(Token::Local) => match tokens.next() {
+                Some(Token::Identifier { body: name }) => {
+                    // skip ":"
+
+                    tokens.next();
+
+                    match tokens.next() {
+                        Some(Token::Identifier { body: type_name }) => {
+                            // skip "="
+                            tokens.next();
+
+                            return parse_expression(tokens).map(|exp| Expression::LocalAssign {
+                                name: name.to_string(),
+                                type_name: type_name.to_string(),
+                                expression: Box::new(exp),
+                            });
+                        }
+
+                        Some(token) => {
+                            return Err(format!(
+                                "Failed parsing expression, got unexpected token {}",
+                                token
+                            ))
+                        }
+                        None => {
+                            return Err(format!(
+                                "Failed parsing expression, was expecting an identifier token for the type name",
+                            ))
+                        }
+                    }
+                }
+                Some(token) => {
+                    return Err(format!(
+                        "Failed parsing expression, got unexpected token {}",
+                        token
+                    ))
+                }
+                None => {
+                    return Err(format!(
+                        "Failed parsing expression, was expecting an identifier token for the variable name",
+                    ))
+                }
+            },
+            Some(Token::Global) => match tokens.next() {
+                Some(Token::Identifier { body: name }) => {
+                    // skip ":"
+
+                    tokens.next();
+
+                    match tokens.next() {
+                        Some(Token::Identifier { body: type_name }) => {
+                            // skip "="
+                            tokens.next();
+
+                            return parse_expression(tokens).map(|exp| Expression::GlobalAssign {
+                                name: name.to_string(),
+                                type_name: type_name.to_string(),
+                                expression: Box::new(exp),
+                            });
+                        }
+
+                        Some(token) => {
+                            return Err(format!(
+                                "Failed parsing expression, got unexpected token {}",
+                                token
+                            ))
+                        }
+                        None => {
+                            return Err(format!(
+                                "Failed parsing expression, was expecting an identifier token for the type name",
+                            ))
+                        }
+                    }
+                }
+                Some(token) => {
+                    return Err(format!(
+                        "Failed parsing expression, got unexpected token {}",
+                        token
+                    ))
+                }
+                None => {
+                    return Err(format!(
+                        "Failed parsing expression, was expecting an identifier token for the variable name",
+                    ))
+                }
+            },
             Some(Token::Identifier { body }) => {
                 return Ok(Expression::Variable {
                     body: body.to_string(),
                 })
             }
-            Some(Token::RightBracket) => {}
+            Some(Token::RightBracket) => {},
+            Some(Token::Text { body }) => return Ok(Expression::String { body: body.to_string() }),
             Some(value) => {
                 return Err(format!(
-                    "Failed parsing params, got unexpected token {}",
+                    "Failed parsing expression, got unexpected token {}",
                     value
                 ))
             }
-            None => return Err(String::from("Failed parsing params")),
+            None => return Err(String::from("Failed parsing expression, ran out of tokens")),
         }
     }
 
@@ -243,6 +384,119 @@ mod tests {
                             body: String::from("name")
                         })
                     }],
+                    params: vec![Param {
+                        name: String::from("name"),
+                        type_name: String::from("string")
+                    }],
+                })]
+            })
+        )
+    }
+
+    #[test]
+    fn a_function_with_const_passes() {
+        assert_eq!(
+            parse(String::from(
+                "
+fn say_hello(name: string) {
+    local x: string = name;
+    return name;
+}"
+            )),
+            Ok(Program {
+                blocks: vec![Block::FunctionBlock(Function {
+                    name: String::from("say_hello"),
+                    expressions: vec![
+                        Expression::LocalAssign {
+                            name: String::from("x"),
+                            type_name: String::from("string"),
+                            expression: Box::new(Expression::Variable {
+                                body: String::from("name")
+                            })
+                        },
+                        Expression::Return {
+                            expression: Box::new(Expression::Variable {
+                                body: String::from("name")
+                            })
+                        }
+                    ],
+                    params: vec![Param {
+                        name: String::from("name"),
+                        type_name: String::from("string")
+                    }],
+                })]
+            })
+        )
+    }
+
+    #[test]
+    fn a_function_with_global_const_passes() {
+        assert_eq!(
+            parse(String::from(
+                "
+fn say_hello(name: string) {
+    global x: string = name;
+    return name;
+}"
+            )),
+            Ok(Program {
+                blocks: vec![Block::FunctionBlock(Function {
+                    name: String::from("say_hello"),
+                    expressions: vec![
+                        Expression::GlobalAssign {
+                            name: String::from("x"),
+                            type_name: String::from("string"),
+                            expression: Box::new(Expression::Variable {
+                                body: String::from("name")
+                            })
+                        },
+                        Expression::Return {
+                            expression: Box::new(Expression::Variable {
+                                body: String::from("name")
+                            })
+                        }
+                    ],
+                    params: vec![Param {
+                        name: String::from("name"),
+                        type_name: String::from("string")
+                    }],
+                })]
+            })
+        )
+    }
+
+    #[test]
+    fn a_function_with_local_addition_passes() {
+        assert_eq!(
+            parse(String::from(
+                "
+fn say_hello(name: string) {
+    local x: string = \"Hello \" + name;
+    return name;
+}"
+            )),
+            Ok(Program {
+                blocks: vec![Block::FunctionBlock(Function {
+                    name: String::from("say_hello"),
+                    expressions: vec![
+                        Expression::LocalAssign {
+                            name: String::from("x"),
+                            type_name: String::from("string"),
+                            expression: Box::new(Expression::Addition {
+                                left: Box::new(Expression::String {
+                                    body: String::from("Hello ")
+                                }),
+                                right: Box::new(Expression::Variable {
+                                    body: String::from("name")
+                                })
+                            })
+                        },
+                        Expression::Return {
+                            expression: Box::new(Expression::Variable {
+                                body: String::from("name")
+                            })
+                        }
+                    ],
                     params: vec![Param {
                         name: String::from("name"),
                         type_name: String::from("string")

@@ -13,6 +13,11 @@ pub enum Token {
     Comma,
     Return,
     Semicolon,
+    Local,
+    Global,
+    Assign,
+    Text { body: String },
+    Plus,
 }
 
 impl Display for Token {
@@ -33,6 +38,11 @@ impl Display for Token {
                 Token::Comma => ",",
                 Token::Return => "return",
                 Token::Semicolon => ";",
+                Token::Local => "local",
+                Token::Global => "global",
+                Token::Assign => "=",
+                Token::Text { body } => body,
+                Token::Plus => "+",
             }
         )
     }
@@ -49,6 +59,8 @@ fn possibly_push_current_buffer(tokens: &mut Vec<Token>, current_buffer: &mut Ve
         match chars.as_ref() {
             "fn" => tokens.push(Token::Fn),
             "return" => tokens.push(Token::Return),
+            "local" => tokens.push(Token::Local),
+            "global" => tokens.push(Token::Global),
             _ => tokens.push(Token::Identifier { body: chars }),
         }
 
@@ -56,13 +68,31 @@ fn possibly_push_current_buffer(tokens: &mut Vec<Token>, current_buffer: &mut Ve
     }
 }
 
+fn push_text(tokens: &mut Vec<Token>, current_buffer: &mut Vec<char>) {
+    tokens.push(Token::Text {
+        body: current_buffer.as_slice().into_iter().collect(),
+    });
+    current_buffer.clear();
+}
+
 pub fn tokenize(body: String) -> Vec<Token> {
     let chars = body.chars();
     let mut tokens: Vec<Token> = vec![];
     let mut current_buffer: Vec<char> = vec![];
+    let mut is_in_quotes = false;
 
     for char in chars {
         match char {
+            '"' => {
+                if is_in_quotes {
+                    push_text(&mut tokens, &mut current_buffer);
+                    is_in_quotes = false
+                } else {
+                    possibly_push_current_buffer(&mut tokens, &mut current_buffer);
+                    is_in_quotes = true
+                }
+            }
+            char if is_in_quotes => current_buffer.push(char),
             '(' => {
                 possibly_push_current_buffer(&mut tokens, &mut current_buffer);
                 tokens.push(Token::LeftParen)
@@ -93,6 +123,14 @@ pub fn tokenize(body: String) -> Vec<Token> {
             ';' => {
                 possibly_push_current_buffer(&mut tokens, &mut current_buffer);
                 tokens.push(Token::Semicolon)
+            }
+            '=' => {
+                possibly_push_current_buffer(&mut tokens, &mut current_buffer);
+                tokens.push(Token::Assign)
+            }
+            '+' => {
+                possibly_push_current_buffer(&mut tokens, &mut current_buffer);
+                tokens.push(Token::Plus)
             }
             char if is_identifier_char(char) => current_buffer.push(char),
             _ => (),
@@ -162,6 +200,41 @@ mod tests {
                 RightParen,
                 LeftBracket,
                 RightBracket
+            ]
+        )
+    }
+
+    #[test]
+    fn tokenize_empty_string_passes() {
+        assert_eq!(
+            tokenize(String::from("\"\"")),
+            vec![Token::Text {
+                body: String::from("")
+            }]
+        )
+    }
+
+    #[test]
+    fn tokenize_filled_string_passes() {
+        assert_eq!(
+            tokenize(String::from("\"Hello world this is a = test.\"")),
+            vec![Token::Text {
+                body: String::from("Hello world this is a = test.")
+            }]
+        )
+    }
+    #[test]
+    fn tokenize_addition_passes() {
+        assert_eq!(
+            tokenize(String::from("name + \"world\"")),
+            vec![
+                Token::Identifier {
+                    body: String::from("name")
+                },
+                Token::Plus,
+                Token::Text {
+                    body: String::from("world")
+                }
             ]
         )
     }
