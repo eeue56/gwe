@@ -1,6 +1,6 @@
 pub mod gwe {
     use crate::{
-        blocks::blocks::{Block, Function, Param},
+        blocks::blocks::{Block, Export, Function, Param},
         expressions::Expression,
     };
 
@@ -97,9 +97,14 @@ pub mod gwe {
         }
     }
 
+    fn generate_export(export: Export) -> String {
+        format!("export {} {}", export.external_name, export.function_name)
+    }
+
     fn generate_block(block: Block) -> String {
         match block {
             Block::FunctionBlock(function) => generate_function(function),
+            Block::ExportBlock(export) => generate_export(export),
         }
     }
 }
@@ -199,6 +204,25 @@ mod tests {
             "fn hello_world(): void {
     global num: f32 = 123 + 3.14;
 }",
+        );
+
+        match parse(input.clone()) {
+            Err(err) => panic!("{}", err),
+            Ok(program) => {
+                assert_eq!(generate(program), input);
+                ()
+            }
+        }
+    }
+
+    #[test]
+    fn export_function() {
+        let input = String::from(
+            "fn hello_world(): f32 {
+    return 3.14;
+}
+
+export helloWorld hello_world",
         );
 
         match parse(input.clone()) {

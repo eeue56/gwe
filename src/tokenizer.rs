@@ -20,6 +20,7 @@ pub mod tokenizer {
         Assign,
         Text { body: String },
         Plus,
+        Export,
     }
 
     impl Display for Token {
@@ -46,6 +47,7 @@ pub mod tokenizer {
                     Token::Text { body } => body,
                     Token::Plus => "+",
                     Token::Number { body } => body,
+                    Token::Export => "export",
                 }
             )
         }
@@ -68,6 +70,7 @@ pub mod tokenizer {
                 "return" => tokens.push(Token::Return),
                 "local" => tokens.push(Token::Local),
                 "global" => tokens.push(Token::Global),
+                "export" => tokens.push(Token::Export),
                 x if is_number_string(x) => tokens.push(Token::Number { body: chars }),
                 _ => tokens.push(Token::Identifier { body: chars }),
             }

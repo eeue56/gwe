@@ -1,6 +1,6 @@
 pub mod web_assembly {
     use crate::{
-        blocks::blocks::{Block, Function, Param},
+        blocks::blocks::{Block, Export, Function, Param},
         expressions::Expression,
     };
 
@@ -35,6 +35,7 @@ pub mod web_assembly {
                         _ => None,
                     }
                 }
+                _ => None,
             })
             .collect::<Vec<String>>();
 
@@ -159,9 +160,17 @@ pub mod web_assembly {
         )
     }
 
+    fn generate_export(export: Export) -> String {
+        format!(
+            "(export \"{}\" (func ${}))",
+            export.external_name, export.function_name
+        )
+    }
+
     fn generate_block(block: Block) -> String {
         match block {
             Block::FunctionBlock(function) => generate_function(function),
+            Block::ExportBlock(export) => generate_export(export),
         }
     }
 }
@@ -304,6 +313,33 @@ mod tests {
   (func $hello_world
     (global.set $num (f32.add (f32.const 123) (f32.const 3.14)))
   )
+)",
+        );
+
+        match parse(input.clone()) {
+            Err(err) => panic!("{}", err),
+            Ok(program) => {
+                assert_eq!(generate(program), output);
+                ()
+            }
+        }
+    }
+
+    #[test]
+    fn export_function() {
+        let input = String::from(
+            "fn hello_world(): f32 {
+    return 3.14;
+}
+
+export helloWorld hello_world",
+        );
+        let output = String::from(
+            "(module
+  (func $hello_world (result f32)
+    (f32.const 3.14)
+  )
+  (export \"helloWorld\" (func $hello_world))
 )",
         );
 

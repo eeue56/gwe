@@ -19,8 +19,15 @@ pub mod blocks {
     }
 
     #[derive(PartialEq, Debug, Clone)]
+    pub struct Export {
+        pub external_name: String,
+        pub function_name: String,
+    }
+
+    #[derive(PartialEq, Debug, Clone)]
     pub enum Block {
         FunctionBlock(Function),
+        ExportBlock(Export),
     }
 
     pub fn into_blocks(body: String) -> Vec<String> {
@@ -137,12 +144,52 @@ pub mod blocks {
         })
     }
 
+    fn parse_export(tokens: Vec<Token>) -> Result<Export, String> {
+        let mut tokens = tokens.iter();
+        tokens.next();
+
+        let external_name = match tokens.next() {
+            None => return Err(String::from("Expected external name in export")),
+            Some(Token::Identifier { body }) => body,
+            Some(token) => return Err(format!("Expected external name in export, got {}", token)),
+        };
+
+        let function_name = match tokens.next() {
+            None => return Err(String::from("Expected function name in export")),
+            Some(Token::Identifier { body }) => body,
+            Some(token) => return Err(format!("Expected function name in export, got {}", token)),
+        };
+
+        Ok(Export {
+            external_name: external_name.to_string(),
+            function_name: function_name.to_string(),
+        })
+    }
+
     pub fn parse_block(body: String) -> Result<Block, String> {
         let tokens = tokenize(body);
 
         match tokens.first() {
             Some(Token::Fn) => parse_function(tokens).map(|f| Block::FunctionBlock(f)),
+            Some(Token::Export) => parse_export(tokens).map(|e| Block::ExportBlock(e)),
             _ => Err(String::from("Unrecoginzed block")),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+
+    use super::blocks::*;
+
+    #[test]
+    fn export_block() {
+        assert_eq!(
+            parse_block(String::from("export sayHello say_hello")),
+            Ok(Block::ExportBlock(Export {
+                external_name: String::from("sayHello"),
+                function_name: String::from("say_hello")
+            }))
+        )
     }
 }

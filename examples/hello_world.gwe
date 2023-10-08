@@ -1,3 +1,5 @@
 fn main(): f32 {
     return 1;
 }
+
+export main main
