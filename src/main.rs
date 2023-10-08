@@ -10,7 +10,7 @@ mod cli {
     use super::*;
     use clap::Parser;
     use parser::parser::parse;
-    use std::{fs, path::Path};
+    use std::{fs, path::Path, process::Command};
 
     /// Simple program to greet a person
     #[derive(Parser, Debug, Clone)]
@@ -20,7 +20,7 @@ mod cli {
         #[arg(long)]
         pub file: String,
 
-        #[arg(long, default_value_t = String::from("wasm"))]
+        #[arg(long, default_value_t = String::from("wat"))]
         pub target: String,
 
         #[arg(long, default_value_t = false)]
@@ -28,6 +28,39 @@ mod cli {
 
         #[arg(long, default_value_t = false)]
         pub stdout: bool,
+    }
+
+    pub fn compile_to_wasm(args: &Args) {
+        let original_file_path = &args.file;
+        let mut path = Path::new("gwe_build").join(Path::new(&original_file_path));
+        path.set_extension("wat");
+
+        let path_as_string = path.as_os_str().to_string_lossy().to_string();
+
+        let mut output_path = path.clone();
+        output_path.set_extension("wasm");
+        let output_path_as_string = output_path.as_os_str().to_string_lossy().to_string();
+
+        match Command::new("wat2wasm")
+            .args([
+                &path_as_string.as_str(),
+                "-o",
+                &output_path_as_string.as_str(),
+            ])
+            .output()
+        {
+            Err(err) => println!("Failed to generate wasm: {}", err),
+            Ok(value) => {
+                if !value.stderr.is_empty() {
+                    match std::str::from_utf8(&value.stderr) {
+                        Ok(v) => println!("Failed to generate wasm:\n{}", String::from(v)),
+                        Err(e) => println!("Invalid UTF-8 sequence in wat2wasm output: {}", e),
+                    };
+                } else {
+                    println!("File written to {}", output_path_as_string);
+                }
+            }
+        }
     }
 
     pub fn write_file(args: &Args) {
@@ -66,8 +99,13 @@ mod cli {
                         return Ok(output);
                     }
                     match args.target.as_str() {
+                        "wat" => {
+                            let output = generators::web_assembly::web_assembly::generate(program);
+                            Ok(output)
+                        }
                         "wasm" => {
                             let output = generators::web_assembly::web_assembly::generate(program);
+                            compile_to_wasm(&args);
                             Ok(output)
                         }
                         "gwe" => {
