@@ -181,4 +181,21 @@ mod tests {
             }
         }
     }
+
+    #[test]
+    fn global_var_and_addition_function() {
+        let input = String::from(
+            "fn hello_world() {
+    global num: string = 123 + 3.14;
+}",
+        );
+
+        match parse(input.clone()) {
+            Err(err) => panic!("{}", err),
+            Ok(program) => {
+                assert_eq!(generate(program), input);
+                ()
+            }
+        }
+    }
 }
