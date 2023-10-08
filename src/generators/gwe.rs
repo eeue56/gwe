@@ -197,7 +197,7 @@ mod tests {
     fn global_var_and_addition_function() {
         let input = String::from(
             "fn hello_world(): void {
-    global num: string = 123 + 3.14;
+    global num: f32 = 123 + 3.14;
 }",
         );
 
