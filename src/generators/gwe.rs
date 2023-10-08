@@ -70,7 +70,12 @@ pub mod gwe {
     fn generate_function(function: Function) -> String {
         let params: Vec<String> = function.params.into_iter().map(generate_param).collect();
         if function.expressions.len() == 0 {
-            format!("fn {}({}) {{\n}}", function.name, params.join(", "))
+            format!(
+                "fn {}({}): {} {{\n}}",
+                function.name,
+                params.join(", "),
+                function.return_type
+            )
         } else {
             let body = indent(
                 function
@@ -82,7 +87,13 @@ pub mod gwe {
                     .join(""),
             );
 
-            format!("fn {}({}) {{\n{}}}", function.name, params.join(", "), body)
+            format!(
+                "fn {}({}): {} {{\n{}}}",
+                function.name,
+                params.join(", "),
+                function.return_type,
+                body
+            )
         }
     }
 
@@ -102,7 +113,7 @@ mod tests {
     #[test]
     fn empty_function() {
         let input = String::from(
-            "fn hello_world() {
+            "fn hello_world(): void {
 }",
         );
 
@@ -118,7 +129,7 @@ mod tests {
     #[test]
     fn empty_with_an_arg_function() {
         let input = String::from(
-            "fn hello_world(name: string) {
+            "fn hello_world(name: string): void {
 }",
         );
 
@@ -134,7 +145,7 @@ mod tests {
     #[test]
     fn empty_with_several_args_function() {
         let input = String::from(
-            "fn hello_world(name: string, age: i32) {
+            "fn hello_world(name: string, age: i32): void {
 }",
         );
 
@@ -150,7 +161,7 @@ mod tests {
     #[test]
     fn return_function() {
         let input = String::from(
-            "fn hello_world(name: string) {
+            "fn hello_world(name: string): string {
     return name;
 }",
         );
@@ -167,7 +178,7 @@ mod tests {
     #[test]
     fn local_var_and_addition_function() {
         let input = String::from(
-            "fn hello_world(name: string) {
+            "fn hello_world(name: string): string {
     local message: string = \"Hello \" + name;
     return message;
 }",
@@ -185,7 +196,7 @@ mod tests {
     #[test]
     fn global_var_and_addition_function() {
         let input = String::from(
-            "fn hello_world() {
+            "fn hello_world(): void {
     global num: string = 123 + 3.14;
 }",
         );

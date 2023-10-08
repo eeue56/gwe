@@ -55,7 +55,7 @@ mod tests {
     #[test]
     fn an_empty_function_passes() {
         assert_eq!(
-            parse(String::from("fn say_hello(name: string) {}")),
+            parse(String::from("fn say_hello(name: string): void {}")),
             Ok(Program {
                 blocks: vec![Block::FunctionBlock(Function {
                     name: String::from("say_hello"),
@@ -64,6 +64,7 @@ mod tests {
                         name: String::from("name"),
                         type_name: String::from("string")
                     }],
+                    return_type: String::from("void"),
                 })]
             })
         )
@@ -72,7 +73,9 @@ mod tests {
     #[test]
     fn a_function_with_return_passes() {
         assert_eq!(
-            parse(String::from("fn say_hello(name: string) { return name; }")),
+            parse(String::from(
+                "fn say_hello(name: string): string { return name; }"
+            )),
             Ok(Program {
                 blocks: vec![Block::FunctionBlock(Function {
                     name: String::from("say_hello"),
@@ -85,6 +88,7 @@ mod tests {
                         name: String::from("name"),
                         type_name: String::from("string")
                     }],
+                    return_type: String::from("string"),
                 })]
             })
         )
@@ -95,7 +99,7 @@ mod tests {
         assert_eq!(
             parse(String::from(
                 "
-fn say_hello(name: string) {
+fn say_hello(name: string): string {
     local x: string = name;
     return name;
 }"
@@ -121,6 +125,7 @@ fn say_hello(name: string) {
                         name: String::from("name"),
                         type_name: String::from("string")
                     }],
+                    return_type: String::from("string"),
                 })]
             })
         )
@@ -131,7 +136,7 @@ fn say_hello(name: string) {
         assert_eq!(
             parse(String::from(
                 "
-fn say_hello(name: string) {
+fn say_hello(name: string): string {
     global x: string = name;
     return name;
 }"
@@ -157,6 +162,7 @@ fn say_hello(name: string) {
                         name: String::from("name"),
                         type_name: String::from("string")
                     }],
+                    return_type: String::from("string"),
                 })]
             })
         )
@@ -167,7 +173,7 @@ fn say_hello(name: string) {
         assert_eq!(
             parse(String::from(
                 "
-fn say_hello(name: string) {
+fn say_hello(name: string): string {
     local x: string = \"Hello \" + name;
     return name;
 }"
@@ -198,6 +204,7 @@ fn say_hello(name: string) {
                         name: String::from("name"),
                         type_name: String::from("string")
                     }],
+                    return_type: String::from("string"),
                 })]
             })
         )
@@ -208,7 +215,7 @@ fn say_hello(name: string) {
         assert_eq!(
             parse(String::from(
                 "
-fn say_hello() {
+fn say_hello(): void {
     local x: number = 123 + 3.14;
     return x;
 }"
@@ -236,6 +243,7 @@ fn say_hello() {
                         }
                     ],
                     params: vec![],
+                    return_type: String::from("void"),
                 })]
             })
         )

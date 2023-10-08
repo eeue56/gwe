@@ -15,6 +15,7 @@ pub mod blocks {
         pub name: String,
         pub expressions: Vec<Expression>,
         pub params: Vec<Param>,
+        pub return_type: String,
     }
 
     #[derive(PartialEq, Debug, Clone)]
@@ -81,6 +82,23 @@ pub mod blocks {
             }
         }
 
+        match tokens.next() {
+            Some(Token::Colon) => (),
+            Some(token) => {
+                return Err(format!(
+                    "Failed parsing function signature - expected return type, got {}",
+                    token
+                ))
+            }
+            None => return Err(String::from("Expected colon but got nothing")),
+        }
+
+        let return_type = match tokens.next() {
+            Some(Token::Identifier { body }) => body.to_string(),
+            Some(token) => return Err(format!("Expected return type name, but got {}", token)),
+            None => return Err(format!("Expected return type name, but got nothing")),
+        };
+
         // {
         tokens.next();
 
@@ -115,6 +133,7 @@ pub mod blocks {
             name: function_name.to_string(),
             expressions: expressions,
             params,
+            return_type,
         })
     }
 
