@@ -32,9 +32,9 @@ mod cli {
 
     pub fn compile_to_wasm(args: &Args) {
         let original_file_path = &args.file;
+
         let mut path = Path::new("gwe_build").join(Path::new(&original_file_path));
         path.set_extension("wat");
-
         let path_as_string = path.as_os_str().to_string_lossy().to_string();
 
         let mut output_path = path.clone();
