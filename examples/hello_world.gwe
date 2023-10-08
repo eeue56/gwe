@@ -1,5 +1,5 @@
-fn main(): f32 {
+fn hello_world(): f32 {
     return 1;
 }
 
-export main main
+export helloWorld hello_world

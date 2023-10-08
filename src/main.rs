@@ -167,15 +167,19 @@ mod tests {
 
         for file in files.unwrap() {
             match file {
-                Ok(entry) => match compile_file(&Args {
-                    file: entry.path().to_string_lossy().to_string(),
-                    target: String::from("gwe"),
-                    format: false,
-                    stdout: true,
-                }) {
-                    Ok(_) => (),
-                    Err(err) => panic!("Failed to compile file {:?} due to {}", entry, err),
-                },
+                Ok(entry) => {
+                    if entry.path().to_string_lossy().to_string().ends_with("gwe") {
+                        match compile_file(&Args {
+                            file: entry.path().to_string_lossy().to_string(),
+                            target: String::from("gwe"),
+                            format: false,
+                            stdout: true,
+                        }) {
+                            Ok(_) => (),
+                            Err(err) => panic!("Failed to compile file {:?} due to {}", entry, err),
+                        };
+                    }
+                }
                 Err(error) => panic!("Failed to compile file {}", error),
             }
         }

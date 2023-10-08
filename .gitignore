@@ -19,3 +19,4 @@ Cargo.lock
 /target
 
 gwe_build/
+examples/node_modules/
