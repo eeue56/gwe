@@ -10,10 +10,10 @@ mod cli {
     use super::*;
     use clap::Parser;
     use parser::parser::parse;
-    use std::fs;
+    use std::{fs, path::Path};
 
     /// Simple program to greet a person
-    #[derive(Parser, Debug)]
+    #[derive(Parser, Debug, Clone)]
     #[command(author, version, about, long_about = None)]
     pub struct Args {
         /// Name of the person to greet
@@ -25,10 +25,36 @@ mod cli {
 
         #[arg(long, default_value_t = false)]
         pub format: bool,
+
+        #[arg(long, default_value_t = false)]
+        pub stdout: bool,
     }
 
-    pub fn compile_file(args: Args) -> Result<String, String> {
-        let contents = fs::read_to_string(args.file);
+    pub fn write_file(args: &Args) {
+        let output = compile_file(args);
+
+        match output {
+            Ok(code) => {
+                let original_file_path = &args.file;
+                let mut path = Path::new("gwe_build").join(Path::new(&original_file_path));
+                path.set_extension("wat");
+
+                let _ = fs::create_dir_all(path.as_path().parent().unwrap());
+
+                match fs::write(path.clone(), code) {
+                    Ok(_) => println!(
+                        "File written to {}",
+                        path.as_os_str().to_string_lossy().to_string()
+                    ),
+                    Err(error) => println!("Error writing file due to {}", error),
+                }
+            }
+            Err(error) => println!("Not writing file due to {}", error),
+        }
+    }
+
+    pub fn compile_file(args: &Args) -> Result<String, String> {
+        let contents = fs::read_to_string(&args.file);
 
         match contents {
             Ok(body) => match parse(body) {
@@ -42,12 +68,10 @@ mod cli {
                     match args.target.as_str() {
                         "wasm" => {
                             let output = generators::web_assembly::web_assembly::generate(program);
-                            println!("{}", output);
                             Ok(output)
                         }
                         "gwe" => {
                             let output = generators::gwe::gwe::generate(program);
-                            println!("{}", output);
                             Ok(output)
                         }
                         _ => {
@@ -76,7 +100,14 @@ mod cli {
 
         println!("Compiling file {}", args.file);
 
-        let _ = compile_file(args);
+        if args.stdout {
+            match compile_file(&args) {
+                Ok(code) => println!("{}", code),
+                Err(_) => (),
+            };
+        } else {
+            write_file(&args);
+        }
     }
 }
 
@@ -98,10 +129,11 @@ mod tests {
 
         for file in files.unwrap() {
             match file {
-                Ok(entry) => match compile_file(Args {
+                Ok(entry) => match compile_file(&Args {
                     file: entry.path().to_string_lossy().to_string(),
                     target: String::from("gwe"),
                     format: false,
+                    stdout: true,
                 }) {
                     Ok(_) => (),
                     Err(err) => panic!("Failed to compile file {:?} due to {}", entry, err),

@@ -109,7 +109,7 @@ pub mod web_assembly {
             } => {
                 format!("(local.set ${} {})", name, generate_expression(*expression))
             }
-            Expression::Number { value } => format!("({})", value),
+            Expression::Number { value } => format!("(f32.const {})", value),
             Expression::Return { expression } => generate_expression(*expression),
             Expression::Variable { body } => format!("(local.get ${})", body),
             Expression::String { body } => format!("\"{}\"", body),
@@ -302,7 +302,7 @@ mod tests {
             "(module
   (global $num (mut f32))
   (func $hello_world
-    (global.set $num (f32.add (123) (3.14)))
+    (global.set $num (f32.add (f32.const 123) (f32.const 3.14)))
   )
 )",
         );
