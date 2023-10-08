@@ -23,7 +23,7 @@ pub mod blocks {
     }
 
     pub fn into_blocks(body: String) -> Vec<String> {
-        body.split("\n\n")
+        body.split("\n}\n")
             .map(str::to_string)
             .filter(|block| block.len() > 0)
             .collect()

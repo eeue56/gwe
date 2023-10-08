@@ -22,6 +22,9 @@ mod cli {
 
         #[arg(long, default_value_t = String::from("wasm"))]
         target: String,
+
+        #[arg(long, default_value_t = false)]
+        format: bool,
     }
 
     pub fn run() {
@@ -35,6 +38,11 @@ mod cli {
             Ok(body) => match parse(body) {
                 Ok(program) => {
                     println!("Parsed successfully");
+                    if args.format {
+                        let output = generators::gwe::gwe::generate(program);
+                        println!("{}", output);
+                        return;
+                    }
                     match args.target.as_str() {
                         "wasm" => {
                             let output = generators::web_assembly::web_assembly::generate(program);
