@@ -1,0 +1,4 @@
+fn say_hello(name: string) {
+    local message: string = "Hello " + name;
+    return message;
+}
