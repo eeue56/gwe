@@ -51,13 +51,17 @@ mod cli {
         {
             Err(err) => println!("Failed to generate wasm: {}", err),
             Ok(value) => {
+                match std::str::from_utf8(&value.stdout) {
+                    Ok(_) => (),
+                    Err(e) => println!("Invalid UTF-8 sequence in wat2wasm output: {}", e),
+                };
                 if !value.stderr.is_empty() {
                     match std::str::from_utf8(&value.stderr) {
                         Ok(v) => println!("Failed to generate wasm:\n{}", String::from(v)),
                         Err(e) => println!("Invalid UTF-8 sequence in wat2wasm output: {}", e),
                     };
                 } else {
-                    println!("File written to {}", output_path_as_string);
+                    println!("File written to {} ", output_path_as_string);
                 }
             }
         }
@@ -66,11 +70,15 @@ mod cli {
     pub fn write_file(args: &Args) {
         let output = compile_file(args);
 
+        if args.target == "wasm" {
+            return;
+        }
+
         match output {
             Ok(code) => {
                 let original_file_path = &args.file;
                 let mut path = Path::new("gwe_build").join(Path::new(&original_file_path));
-                path.set_extension("wat");
+                path.set_extension(&args.target);
 
                 let _ = fs::create_dir_all(path.as_path().parent().unwrap());
 
@@ -104,9 +112,12 @@ mod cli {
                             Ok(output)
                         }
                         "wasm" => {
-                            let output = generators::web_assembly::web_assembly::generate(program);
+                            write_file(&Args {
+                                target: String::from("wat"),
+                                ..args.clone()
+                            });
                             compile_to_wasm(&args);
-                            Ok(output)
+                            Ok(String::from(""))
                         }
                         "gwe" => {
                             let output = generators::gwe::gwe::generate(program);
