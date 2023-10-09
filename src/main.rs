@@ -9,8 +9,9 @@ mod tokenizer;
 mod cli {
     use super::*;
     use clap::Parser;
+    use notify::RecursiveMode;
     use parser::parser::parse;
-    use std::{fs, path::Path, process::Command};
+    use std::{env::current_dir, fs, path::Path, process::Command, time::Duration};
 
     /// Simple program to greet a person
     #[derive(Parser, Debug, Clone)]
@@ -28,6 +29,9 @@ mod cli {
 
         #[arg(long, default_value_t = false)]
         pub stdout: bool,
+
+        #[arg(long, default_value_t = false)]
+        pub watch: bool,
     }
 
     pub fn compile_to_wasm(args: &Args) {
@@ -144,11 +148,7 @@ mod cli {
         }
     }
 
-    pub fn run() {
-        let args = Args::parse();
-
-        println!("Compiling file {}", args.file);
-
+    fn compile_or_write(args: &Args) {
         if args.stdout {
             match compile_file(&args) {
                 Ok(code) => println!("{}", code),
@@ -156,6 +156,50 @@ mod cli {
             };
         } else {
             write_file(&args);
+        }
+    }
+
+    pub fn run() {
+        let args = Args::parse();
+
+        if args.watch {
+            println!("Watching file {}", args.file);
+            let (tx, rx) = std::sync::mpsc::channel();
+
+            let mut debouncer =
+                notify_debouncer_mini::new_debouncer(Duration::from_secs(1), tx).unwrap();
+
+            debouncer
+                .watcher()
+                .watch(Path::new(&args.file), RecursiveMode::Recursive)
+                .unwrap();
+
+            let cwd = current_dir().unwrap().to_string_lossy().to_string();
+
+            for e in rx {
+                match e {
+                    Ok(events) => {
+                        for event in events {
+                            let path: String = event
+                                .path
+                                .to_string_lossy()
+                                .to_string()
+                                .chars()
+                                .skip(cwd.len() + 1)
+                                .collect();
+
+                            compile_or_write(&Args {
+                                file: format!("{}", path),
+                                ..args.clone()
+                            })
+                        }
+                    }
+                    Err(_) => (),
+                }
+            }
+        } else {
+            println!("Compiling file {}", args.file);
+            compile_or_write(&args);
         }
     }
 }
@@ -185,6 +229,7 @@ mod tests {
                             target: String::from("gwe"),
                             format: false,
                             stdout: true,
+                            watch: false,
                         }) {
                             Ok(_) => (),
                             Err(err) => panic!("Failed to compile file {:?} due to {}", entry, err),

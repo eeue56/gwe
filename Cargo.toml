@@ -7,3 +7,5 @@ edition = "2021"
 
 [dependencies]
 clap = { version = "4.4.6", features = ["derive"] }
+notify = "6.1.1"
+notify-debouncer-mini = "0.4.1"
