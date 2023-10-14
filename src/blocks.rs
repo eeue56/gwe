@@ -1,7 +1,7 @@
 pub mod blocks {
     use crate::{
         expressions::{parse_expression, Expression},
-        tokenizer::tokenizer::{tokenize, Token},
+        tokenizer::tokenizer::{error_with_info, tokenize, FullyQualifiedToken, Token},
     };
 
     #[derive(PartialEq, Debug, Clone)]
@@ -37,26 +37,46 @@ pub mod blocks {
             .collect()
     }
 
-    fn parse_function(tokens: Vec<Token>) -> Result<Function, String> {
+    fn parse_function(tokens: Vec<FullyQualifiedToken>) -> Result<Function, String> {
         let mut tokens = tokens.iter();
 
         // fn
-        tokens.next();
+        let fn_token = tokens.next().unwrap();
 
-        let function_name = match tokens.next() {
+        let function_name = match tokens.next().map(|fqt| &fqt.token) {
             Some(Token::Identifier { body }) => body,
-            None => return Err(String::from("Expected function name but got nothing")),
-            _ => return Err(String::from("Expected function name but got ")),
+            None => {
+                return error_with_info(
+                    String::from("Expected a function name but got nothing"),
+                    fn_token,
+                )
+            }
+            Some(token) => {
+                return error_with_info(
+                    format!("Expected a function name but got {}", token),
+                    fn_token,
+                )
+            }
         };
 
-        // parens
-        tokens.next();
+        let open_parens = tokens.next();
+
+        match open_parens.map(|fqt| &fqt.token) {
+            Some(Token::LeftParen) => (),
+            Some(token) => {
+                return error_with_info(
+                    format!("Expected parens but got {}", token),
+                    open_parens.unwrap(),
+                )
+            }
+            None => return Err(format!("Expected parens but got nothing")),
+        }
 
         let param_name: &mut Option<String> = &mut None;
 
         let mut params: Vec<Param> = vec![];
 
-        while let token = tokens.next() {
+        while let token = tokens.next().map(|fqt| &fqt.token) {
             match token {
                 Some(Token::RightParen) => break,
                 Some(Token::Identifier { body }) => match param_name {
@@ -89,28 +109,53 @@ pub mod blocks {
             }
         }
 
+        if let Some(name) = param_name {
+            return error_with_info(
+                format!("Failed to find type for param {}", name),
+                open_parens.unwrap(),
+            );
+        }
+
         match tokens.next() {
-            Some(Token::Colon) => (),
-            Some(token) => {
-                return Err(format!(
-                    "Failed parsing function signature - expected return type, got {}",
-                    token
-                ))
-            }
+            Some(fqt) => match &fqt.token {
+                Token::Colon => (),
+                token => {
+                    return error_with_info(
+                        format!(
+                            "Failed parsing function signature - expected return type, got {}",
+                            token
+                        ),
+                        fqt,
+                    )
+                }
+            },
             None => return Err(String::from("Expected colon but got nothing")),
         }
 
         let return_type = match tokens.next() {
-            Some(Token::Identifier { body }) => body.to_string(),
-            Some(token) => return Err(format!("Expected return type name, but got {}", token)),
+            Some(fqt) => match &fqt.token {
+                Token::Identifier { body } => body.to_string(),
+                token => {
+                    return error_with_info(
+                        format!("Expected return type name, but got {}", token),
+                        fqt,
+                    )
+                }
+            },
             None => return Err(format!("Expected return type name, but got nothing")),
         };
 
         // {
-        tokens.next();
+        match tokens.next() {
+            Some(fqt) => match &fqt.token {
+                Token::LeftBracket => (),
+                token => return error_with_info(format!("Expected {{ but got {}", token), fqt),
+            },
+            None => return Err(format!("Expected {{ but got nothing")),
+        }
 
         let mut expressions: Vec<Expression> = vec![];
-        let mut original_tokens: Vec<Token> = vec![];
+        let mut original_tokens: Vec<FullyQualifiedToken> = vec![];
 
         for token in tokens.clone() {
             original_tokens.push(token.clone());
@@ -119,12 +164,12 @@ pub mod blocks {
         // cut off }
         original_tokens.truncate(original_tokens.len() - 1);
 
-        let tokens_split_by_semicolon: Vec<&[Token]> = original_tokens
-            .split(|token| match token {
+        let tokens_split_by_semicolon: Vec<&[FullyQualifiedToken]> = original_tokens
+            .split(|fqt| match fqt.token {
                 Token::Semicolon => true,
                 _ => false,
             })
-            .collect::<Vec<&[Token]>>();
+            .collect::<Vec<&[FullyQualifiedToken]>>();
 
         for expression_tokens in tokens_split_by_semicolon.iter() {
             if expression_tokens.len() < 1 {
@@ -144,20 +189,34 @@ pub mod blocks {
         })
     }
 
-    fn parse_export(tokens: Vec<Token>) -> Result<Export, String> {
+    fn parse_export(tokens: Vec<FullyQualifiedToken>) -> Result<Export, String> {
         let mut tokens = tokens.iter();
         tokens.next();
 
         let external_name = match tokens.next() {
+            Some(fqt) => match &fqt.token {
+                Token::Identifier { body } => body,
+                token => {
+                    return error_with_info(
+                        format!("Expected external name in export, got {}", token),
+                        fqt,
+                    )
+                }
+            },
             None => return Err(String::from("Expected external name in export")),
-            Some(Token::Identifier { body }) => body,
-            Some(token) => return Err(format!("Expected external name in export, got {}", token)),
         };
 
         let function_name = match tokens.next() {
             None => return Err(String::from("Expected function name in export")),
-            Some(Token::Identifier { body }) => body,
-            Some(token) => return Err(format!("Expected function name in export, got {}", token)),
+            Some(fqt) => match &fqt.token {
+                Token::Identifier { body } => body,
+                token => {
+                    return error_with_info(
+                        format!("Expected function name in export, got {}", token),
+                        fqt,
+                    )
+                }
+            },
         };
 
         Ok(Export {
@@ -169,7 +228,7 @@ pub mod blocks {
     pub fn parse_block(body: String) -> Result<Block, String> {
         let tokens = tokenize(body);
 
-        match tokens.first() {
+        match tokens.first().map(|fqt| &fqt.token) {
             Some(Token::Fn) => parse_function(tokens).map(|f| Block::FunctionBlock(f)),
             Some(Token::Export) => parse_export(tokens).map(|e| Block::ExportBlock(e)),
             _ => Err(String::from("Unrecoginzed block")),

@@ -1,4 +1,4 @@
-use crate::tokenizer::tokenizer::Token;
+use crate::tokenizer::tokenizer::{error_with_info, FullyQualifiedToken, Token};
 use std::slice::Iter;
 
 #[derive(PartialEq, Debug, Clone)]
@@ -31,15 +31,17 @@ pub enum Expression {
     },
 }
 
-pub fn parse_expression<'a>(tokens: &mut Iter<'a, Token>) -> Result<Expression, String> {
-    let has_addition = tokens.clone().any(|t| t == &Token::Plus);
-    let has_assign = tokens.clone().any(|t| t == &Token::Assign);
+pub fn parse_expression<'a>(
+    tokens: &mut Iter<'a, FullyQualifiedToken>,
+) -> Result<Expression, String> {
+    let has_addition = tokens.clone().any(|fqt| fqt.token == Token::Plus);
+    let has_assign = tokens.clone().any(|fqt| fqt.token == Token::Assign);
 
     if has_addition && !has_assign {
-        let sides: Vec<Vec<Token>> = tokens
+        let sides: Vec<Vec<FullyQualifiedToken>> = tokens
             .clone()
             .as_slice()
-            .splitn(2, |token| token == &Token::Plus)
+            .splitn(2, |fqt| fqt.token == Token::Plus)
             .map(|v| v.to_vec())
             .collect();
 
@@ -58,31 +60,59 @@ pub fn parse_expression<'a>(tokens: &mut Iter<'a, Token>) -> Result<Expression, 
         };
     }
 
-    while let token = tokens.next() {
-        match token {
-            Some(Token::Return) => {
-                return parse_expression(tokens).map(|exp| Expression::Return {
-                    expression: Box::new(exp),
-                })
-            }
-            Some(Token::Local) => match tokens.next() {
-                Some(Token::Identifier { body: name }) => {
-                    // skip ":"
+    while let maybe_fqt = tokens.next() {
+        match maybe_fqt {
+            Some(fqt) => {
+                match &fqt.token {
+                    Token::Return => {
+                        return parse_expression(tokens).map(|exp| Expression::Return {
+                            expression: Box::new(exp),
+                        })
+                    }
+                    Token::Local => match tokens.next().map(|fqt|  &fqt.token) {
+                        Some(Token::Identifier { body: name }) => {
+                            // skip ":"
+                            match tokens.next() {
+                                Some(fqt) => match &fqt.token {
+                                    Token::Colon => (),
+                                    token => return error_with_info(format!("Expected : but got {}", token), fqt)
+                                }
+                                None => return Err(format!("Expected : but got nothing"))
+                            }
 
-                    tokens.next();
+                            match tokens.next() {
+                                Some(fqt) => match &fqt.token {
+                                    Token::Identifier { body: type_name } => {
 
-                    match tokens.next() {
-                        Some(Token::Identifier { body: type_name }) => {
-                            // skip "="
-                            tokens.next();
+                                        match tokens.next() {
+                                            Some(fqt) => match &fqt.token {
+                                                Token::Assign => (),
+                                                token => return error_with_info(format!("Expected = but got {}", token), fqt)
+                                            }
+                                            None => return Err(format!("Expected = but got nothing"))
+                                        }
 
-                            return parse_expression(tokens).map(|exp| Expression::LocalAssign {
-                                name: name.to_string(),
-                                type_name: type_name.to_string(),
-                                expression: Box::new(exp),
-                            });
+                                        return parse_expression(tokens).map(|exp| Expression::LocalAssign {
+                                            name: name.to_string(),
+                                            type_name: type_name.to_string(),
+                                            expression: Box::new(exp),
+                                        });
+                                    }
+
+                                    token => {
+                                        return error_with_info(format!(
+                                            "Failed parsing expression, got unexpected token {}",
+                                            token
+                                        ), fqt)
+                                    }
+                                }
+                                None => {
+                                    return Err(format!(
+                                        "Failed parsing expression, was expecting an identifier token for the type name",
+                                    ))
+                                }
+                            }
                         }
-
                         Some(token) => {
                             return Err(format!(
                                 "Failed parsing expression, got unexpected token {}",
@@ -91,79 +121,82 @@ pub fn parse_expression<'a>(tokens: &mut Iter<'a, Token>) -> Result<Expression, 
                         }
                         None => {
                             return Err(format!(
-                                "Failed parsing expression, was expecting an identifier token for the type name",
+                                "Failed parsing expression, was expecting an identifier token for the variable name",
                             ))
                         }
-                    }
-                }
-                Some(token) => {
-                    return Err(format!(
-                        "Failed parsing expression, got unexpected token {}",
-                        token
-                    ))
-                }
-                None => {
-                    return Err(format!(
-                        "Failed parsing expression, was expecting an identifier token for the variable name",
-                    ))
-                }
-            },
-            Some(Token::Global) => match tokens.next() {
-                Some(Token::Identifier { body: name }) => {
-                    // skip ":"
+                    },
+                    Token::Global => match tokens.next() {
+                        Some(fqt) => match &fqt.token {
+                            Token::Identifier { body: name } => {
+                                // skip ":"
+                                match tokens.next() {
+                                    Some(fqt) => match &fqt.token {
+                                        Token::Colon => (),
+                                        token => return error_with_info(format!("Expected : but got {}", token), fqt)
+                                    }
+                                    None => return Err(format!("Expected : but got nothing"))
+                                }
 
-                    tokens.next();
+                                match tokens.next().map(|fqt| &fqt.token) {
+                                    Some(Token::Identifier { body: type_name }) => {
+                                        // skip "="
+                                        match tokens.next() {
+                                            Some(fqt) => match &fqt.token {
+                                                Token::Assign => (),
+                                                token => return error_with_info(format!("Expected = but got {}", token), fqt)
+                                            }
+                                            None => return Err(format!("Expected = but got nothing"))
+                                        }
 
-                    match tokens.next() {
-                        Some(Token::Identifier { body: type_name }) => {
-                            // skip "="
-                            tokens.next();
+                                        return parse_expression(tokens).map(|exp| Expression::GlobalAssign {
+                                            name: name.to_string(),
+                                            type_name: type_name.to_string(),
+                                            expression: Box::new(exp),
+                                        });
+                                    }
 
-                            return parse_expression(tokens).map(|exp| Expression::GlobalAssign {
-                                name: name.to_string(),
-                                type_name: type_name.to_string(),
-                                expression: Box::new(exp),
-                            });
-                        }
+                                    Some(token) => {
+                                        return Err(format!(
+                                            "Failed parsing expression, got unexpected token {}",
+                                            token
+                                        ))
+                                    }
+                                    None => {
+                                        return Err(format!(
+                                            "Failed parsing expression, was expecting an identifier token for the type name",
+                                        ))
+                                    }
+                                }
+                            }
+                            token => {
+                                return error_with_info(format!(
+                                    "Failed parsing expression, got unexpected token {}",
+                                    token
+                                ), fqt)
+                            }
 
-                        Some(token) => {
-                            return Err(format!(
-                                "Failed parsing expression, got unexpected token {}",
-                                token
-                            ))
                         }
                         None => {
                             return Err(format!(
-                                "Failed parsing expression, was expecting an identifier token for the type name",
+                                "Failed parsing expression, was expecting an identifier token for the variable name",
                             ))
                         }
+                    },
+                    Token::Identifier { body } => {
+                        return Ok(Expression::Variable {
+                            body: body.to_string(),
+                        })
+                    }
+                    Token::RightBracket => {},
+                    Token::Text { body } => return Ok(Expression::String { body: body.to_string() }),
+                    Token::Number { body } => return Ok(Expression::Number {value: body.to_string()}),
+                    value => {
+                        return error_with_info(format!(
+                            "Failed parsing expression, got unexpected token {}",
+                            value
+                        ), fqt)
                     }
                 }
-                Some(token) => {
-                    return Err(format!(
-                        "Failed parsing expression, got unexpected token {}",
-                        token
-                    ))
-                }
-                None => {
-                    return Err(format!(
-                        "Failed parsing expression, was expecting an identifier token for the variable name",
-                    ))
-                }
-            },
-            Some(Token::Identifier { body }) => {
-                return Ok(Expression::Variable {
-                    body: body.to_string(),
-                })
-            }
-            Some(Token::RightBracket) => {},
-            Some(Token::Text { body }) => return Ok(Expression::String { body: body.to_string() }),
-            Some(Token::Number { body }) => return Ok(Expression::Number {value: body.to_string()}),
-            Some(value) => {
-                return Err(format!(
-                    "Failed parsing expression, got unexpected token {}",
-                    value
-                ))
             }
             None => return Err(String::from("Failed parsing expression, ran out of tokens")),
         }

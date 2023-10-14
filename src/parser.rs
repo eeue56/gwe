@@ -248,4 +248,150 @@ fn say_hello(): void {
             })
         )
     }
+
+    #[test]
+    fn a_function_with_nothing_errors() {
+        assert_eq!(
+            parse(String::from("fn")),
+            Err(String::from(
+                "Expected a function name but got nothing at line 1, index 2"
+            ))
+        )
+    }
+
+    #[test]
+    fn a_function_without_a_name_errors() {
+        assert_eq!(
+            parse(String::from("fn () {}")),
+            Err(String::from(
+                "Expected a function name but got ( at line 1, index 2"
+            ))
+        )
+    }
+
+    #[test]
+    fn a_function_without_a_parens_errors() {
+        assert_eq!(
+            parse(String::from("fn {}")),
+            Err(String::from(
+                "Expected a function name but got { at line 1, index 2"
+            ))
+        )
+    }
+
+    #[test]
+    fn a_function_without_a_parens_after_a_name_errors() {
+        assert_eq!(
+            parse(String::from("fn say_hello {}")),
+            Err(String::from(
+                "Expected parens but got { at line 1, index 13"
+            ))
+        )
+    }
+
+    #[test]
+    fn a_function_with_a_param_without_type_errors() {
+        assert_eq!(
+            parse(String::from("fn say_hello (name) {}")),
+            Err(String::from(
+                "Failed to find type for param name at line 1, index 13"
+            ))
+        )
+    }
+
+    #[test]
+    fn a_function_without_return_type_with_colon_errors() {
+        assert_eq!(
+            parse(String::from("fn say_hello (name: string): {}")),
+            Err(String::from(
+                "Expected return type name, but got { at line 1, index 29"
+            ))
+        )
+    }
+
+    #[test]
+    fn a_function_without_return_type_errors() {
+        assert_eq!(
+            parse(String::from("fn say_hello (name: string) {}")),
+            Err(String::from(
+                "Failed parsing function signature - expected return type, got { at line 1, index 28"
+            ))
+        )
+    }
+
+    #[test]
+    fn a_function_with_return_type_but_missing_open_bracket_errors() {
+        assert_eq!(
+            parse(String::from("fn say_hello (name: string): string }")),
+            Err(String::from("Expected { but got } at line 1, index 36"))
+        )
+    }
+
+    #[test]
+    fn a_function_with_return_type_but_missing_everything_errors() {
+        assert_eq!(
+            parse(String::from("fn say_hello (name: string): string")),
+            Err(String::from("Expected { but got nothing"))
+        )
+    }
+
+    #[test]
+    fn an_export_without_an_external_name_errors() {
+        assert_eq!(
+            parse(String::from("export")),
+            Err(String::from("Expected external name in export"))
+        )
+    }
+
+    #[test]
+    fn an_export_without_an_external_name_but_a_bracket_errors() {
+        assert_eq!(
+            parse(String::from("export {")),
+            Err(String::from(
+                "Expected external name in export, got { at line 1, index 7"
+            ))
+        )
+    }
+
+    #[test]
+    fn an_export_without_an_internal_name_errors() {
+        assert_eq!(
+            parse(String::from("export sayHello")),
+            Err(String::from("Expected function name in export"))
+        )
+    }
+
+    #[test]
+    fn an_export_without_an_internal_name_but_a_bracket_errors() {
+        assert_eq!(
+            parse(String::from("export sayHello {")),
+            Err(String::from(
+                "Expected function name in export, got { at line 1, index 16"
+            ))
+        )
+    }
+
+    #[test]
+    fn a_local_without_a_type_errors() {
+        assert_eq!(
+            parse(String::from(
+                "fn sayHello(): string {
+    local var = 5;
+}"
+            )),
+            Err(String::from("Expected : but got = at line 2, index 14"))
+        )
+    }
+
+    #[test]
+    fn a_local_without_a_assign_errors() {
+        assert_eq!(
+            parse(String::from(
+                "fn sayHello(): string {
+    local var: i32;
+}"
+            )),
+            Err(String::from("Expected = but got nothing"))
+        )
+    }
 }
