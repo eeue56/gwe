@@ -1,185 +1,181 @@
-pub mod web_assembly {
-    use crate::{
-        blocks::blocks::{Block, Export, Function, Param},
-        expressions::Expression,
-    };
+use crate::{
+    blocks::{Block, Export, Function, Param},
+    expressions::Expression,
+};
 
-    pub fn indent(body: String) -> String {
-        body.split("\n")
-            .map(|line| {
-                if line.len() == 0 {
-                    String::from("")
-                } else {
-                    format!("  {}\n", line)
-                }
-            })
-            .collect()
-    }
-
-    pub fn generate(program: crate::parser::parser::Program) -> String {
-        let blocks: Vec<String> = program
-            .blocks
-            .clone()
-            .into_iter()
-            .map(generate_block)
-            .collect();
-        let globals = program
-            .blocks
-            .clone()
-            .iter()
-            .filter_map(|block| match block {
-                Block::FunctionBlock(function) => {
-                    match define_globals(function.expressions.clone()) {
-                        str if str.len() == 0 => None,
-                        str if str.len() > 0 => Some(str),
-                        _ => None,
-                    }
-                }
-                _ => None,
-            })
-            .collect::<Vec<String>>();
-
-        let globals_and_blocks = [globals, blocks].concat();
-
-        format!(
-            "(module
-{})",
-            indent(globals_and_blocks.join("\n\n"))
-        )
-    }
-
-    fn define_globals(expressions: Vec<Expression>) -> String {
-        expressions
-            .into_iter()
-            .filter_map(|expression| match expression {
-                Expression::GlobalAssign {
-                    name,
-                    type_name,
-                    expression: _,
-                } => Some((name, type_name)),
-                _ => None,
-            })
-            .map(|(name, type_name)| format!("(global ${} (mut {}))", name, type_name))
-            .collect::<Vec<String>>()
-            .join("\n")
-    }
-
-    fn define_locals(expressions: Vec<Expression>) -> String {
-        expressions
-            .into_iter()
-            .filter_map(|expression| match expression {
-                Expression::LocalAssign {
-                    name,
-                    type_name,
-                    expression: _,
-                } => Some((name, type_name)),
-                _ => None,
-            })
-            .map(|(name, type_name)| format!("(local ${} {})", name, type_name))
-            .collect::<Vec<String>>()
-            .join("\n")
-    }
-
-    fn generate_param(param: Param) -> String {
-        format!("(param ${} {})", param.name, param.type_name)
-    }
-
-    fn generate_expression(expression: Expression) -> String {
-        match expression {
-            Expression::Addition { left, right } => {
-                let generated_left = generate_expression(*left);
-                let generated_right = generate_expression(*right);
-
-                format!("(f32.add {} {})", generated_left, generated_right)
+pub fn indent(body: String) -> String {
+    body.split("\n")
+        .map(|line| {
+            if line.len() == 0 {
+                String::from("")
+            } else {
+                format!("  {}\n", line)
             }
+        })
+        .collect()
+}
+
+pub fn generate(program: crate::parser::Program) -> String {
+    let blocks: Vec<String> = program
+        .blocks
+        .clone()
+        .into_iter()
+        .map(generate_block)
+        .collect();
+    let globals = program
+        .blocks
+        .clone()
+        .iter()
+        .filter_map(|block| match block {
+            Block::FunctionBlock(function) => match define_globals(function.expressions.clone()) {
+                str if str.len() == 0 => None,
+                str if str.len() > 0 => Some(str),
+                _ => None,
+            },
+            _ => None,
+        })
+        .collect::<Vec<String>>();
+
+    let globals_and_blocks = [globals, blocks].concat();
+
+    format!(
+        "(module
+{})",
+        indent(globals_and_blocks.join("\n\n"))
+    )
+}
+
+fn define_globals(expressions: Vec<Expression>) -> String {
+    expressions
+        .into_iter()
+        .filter_map(|expression| match expression {
             Expression::GlobalAssign {
                 name,
-                type_name: _,
-                expression,
-            } => {
-                format!(
-                    "(global.set ${} {})",
-                    name,
-                    generate_expression(*expression)
-                )
-            }
+                type_name,
+                expression: _,
+            } => Some((name, type_name)),
+            _ => None,
+        })
+        .map(|(name, type_name)| format!("(global ${} (mut {}))", name, type_name))
+        .collect::<Vec<String>>()
+        .join("\n")
+}
+
+fn define_locals(expressions: Vec<Expression>) -> String {
+    expressions
+        .into_iter()
+        .filter_map(|expression| match expression {
             Expression::LocalAssign {
                 name,
-                type_name: _,
-                expression,
-            } => {
-                format!("(local.set ${} {})", name, generate_expression(*expression))
-            }
-            Expression::Number { value } => format!("(f32.const {})", value),
-            Expression::Return { expression } => generate_expression(*expression),
-            Expression::Variable { body } => format!("(local.get ${})", body),
-            Expression::String { body } => format!("\"{}\"", body),
+                type_name,
+                expression: _,
+            } => Some((name, type_name)),
+            _ => None,
+        })
+        .map(|(name, type_name)| format!("(local ${} {})", name, type_name))
+        .collect::<Vec<String>>()
+        .join("\n")
+}
+
+fn generate_param(param: Param) -> String {
+    format!("(param ${} {})", param.name, param.type_name)
+}
+
+fn generate_expression(expression: Expression) -> String {
+    match expression {
+        Expression::Addition { left, right } => {
+            let generated_left = generate_expression(*left);
+            let generated_right = generate_expression(*right);
+
+            format!("(f32.add {} {})", generated_left, generated_right)
         }
+        Expression::GlobalAssign {
+            name,
+            type_name: _,
+            expression,
+        } => {
+            format!(
+                "(global.set ${} {})",
+                name,
+                generate_expression(*expression)
+            )
+        }
+        Expression::LocalAssign {
+            name,
+            type_name: _,
+            expression,
+        } => {
+            format!("(local.set ${} {})", name, generate_expression(*expression))
+        }
+        Expression::Number { value } => format!("(f32.const {})", value),
+        Expression::Return { expression } => generate_expression(*expression),
+        Expression::Variable { body } => format!("(local.get ${})", body),
+        Expression::String { body } => format!("\"{}\"", body),
     }
+}
 
-    fn generate_function(function: Function) -> String {
-        let params: String = if function.params.len() == 0 {
-            String::from("")
-        } else {
-            String::from(" ")
-                + &function
-                    .params
-                    .clone()
-                    .into_iter()
-                    .map(generate_param)
-                    .collect::<Vec<String>>()
-                    .join(" ")
-        };
+fn generate_function(function: Function) -> String {
+    let params: String = if function.params.len() == 0 {
+        String::from("")
+    } else {
+        String::from(" ")
+            + &function
+                .params
+                .clone()
+                .into_iter()
+                .map(generate_param)
+                .collect::<Vec<String>>()
+                .join(" ")
+    };
 
-        let return_value: String = if function.return_type == String::from("void") {
-            String::from("")
-        } else {
-            format!(" (result {})", function.return_type)
-        };
+    let return_value: String = if function.return_type == String::from("void") {
+        String::from("")
+    } else {
+        format!(" (result {})", function.return_type)
+    };
 
-        let locals = define_locals(function.expressions.clone());
+    let locals = define_locals(function.expressions.clone());
 
-        let expressions = function
-            .expressions
-            .into_iter()
-            .map(generate_expression)
-            .map(|line| format!("{}\n", line))
-            .collect::<Vec<String>>()
-            .join("");
+    let expressions = function
+        .expressions
+        .into_iter()
+        .map(generate_expression)
+        .map(|line| format!("{}\n", line))
+        .collect::<Vec<String>>()
+        .join("");
 
-        let definitions = if locals.len() == 0 {
-            indent(expressions)
-        } else {
-            indent(format!("{}\n{}", locals, expressions))
-        };
+    let definitions = if locals.len() == 0 {
+        indent(expressions)
+    } else {
+        indent(format!("{}\n{}", locals, expressions))
+    };
 
-        format!(
-            "(func ${}{}{}
+    format!(
+        "(func ${}{}{}
 {})",
-            function.name, params, return_value, definitions
-        )
-    }
+        function.name, params, return_value, definitions
+    )
+}
 
-    fn generate_export(export: Export) -> String {
-        format!(
-            "(export \"{}\" (func ${}))",
-            export.external_name, export.function_name
-        )
-    }
+fn generate_export(export: Export) -> String {
+    format!(
+        "(export \"{}\" (func ${}))",
+        export.external_name, export.function_name
+    )
+}
 
-    fn generate_block(block: Block) -> String {
-        match block {
-            Block::FunctionBlock(function) => generate_function(function),
-            Block::ExportBlock(export) => generate_export(export),
-        }
+fn generate_block(block: Block) -> String {
+    match block {
+        Block::FunctionBlock(function) => generate_function(function),
+        Block::ExportBlock(export) => generate_export(export),
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use crate::parser::parser::parse;
+    use crate::parser::parse;
 
-    use super::web_assembly::*;
+    use super::*;
 
     #[test]
     fn empty_function() {

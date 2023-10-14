@@ -10,7 +10,7 @@ mod cli {
     use super::*;
     use clap::Parser;
     use notify::RecursiveMode;
-    use parser::parser::parse;
+    use parser::parse;
     use std::{env::current_dir, fs, path::Path, process::Command, time::Duration};
 
     /// Simple program to greet a person
@@ -106,13 +106,13 @@ mod cli {
                 Ok(program) => {
                     println!("Parsed successfully");
                     if args.format {
-                        let output = generators::gwe::gwe::generate(program);
+                        let output = generators::gwe::generate(program);
                         println!("{}", output);
                         return Ok(output);
                     }
                     match args.target.as_str() {
                         "wat" => {
-                            let output = generators::web_assembly::web_assembly::generate(program);
+                            let output = generators::web_assembly::generate(program);
                             Ok(output)
                         }
                         "wasm" => {
@@ -124,7 +124,7 @@ mod cli {
                             Ok(String::from(""))
                         }
                         "gwe" => {
-                            let output = generators::gwe::gwe::generate(program);
+                            let output = generators::gwe::generate(program);
                             Ok(output)
                         }
                         _ => {

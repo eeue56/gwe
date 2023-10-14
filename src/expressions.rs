@@ -1,4 +1,4 @@
-use crate::tokenizer::tokenizer::{error_with_info, FullyQualifiedToken, Token};
+use crate::tokenizer::{error_with_info, FullyQualifiedToken, Token};
 use std::slice::Iter;
 
 #[derive(PartialEq, Debug, Clone)]

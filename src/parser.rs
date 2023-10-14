@@ -1,42 +1,41 @@
-pub mod parser {
-    use crate::blocks::blocks::{into_blocks, parse_block, Block};
 
-    #[derive(PartialEq, Debug, Clone)]
-    pub struct Program {
-        pub blocks: Vec<Block>,
+use crate::blocks::{into_blocks, parse_block, Block};
+
+#[derive(PartialEq, Debug, Clone)]
+pub struct Program {
+    pub blocks: Vec<Block>,
+}
+
+pub fn parse(body: String) -> Result<Program, String> {
+    let unparsed_blocks = into_blocks(body);
+
+    if unparsed_blocks.len() == 0 {
+        return Ok(Program { blocks: vec![] });
     }
 
-    pub fn parse(body: String) -> Result<Program, String> {
-        let unparsed_blocks = into_blocks(body);
+    let parsed_blocks = unparsed_blocks.into_iter().map(parse_block);
 
-        if unparsed_blocks.len() == 0 {
-            return Ok(Program { blocks: vec![] });
+    let mut blocks: Vec<Block> = vec![];
+    let mut errors: Vec<String> = vec![];
+
+    for parsed_block in parsed_blocks {
+        match parsed_block {
+            Ok(block) => blocks.push(block),
+            Err(error) => errors.push(error),
         }
+    }
 
-        let parsed_blocks = unparsed_blocks.into_iter().map(parse_block);
-
-        let mut blocks: Vec<Block> = vec![];
-        let mut errors: Vec<String> = vec![];
-
-        for parsed_block in parsed_blocks {
-            match parsed_block {
-                Ok(block) => blocks.push(block),
-                Err(error) => errors.push(error),
-            }
-        }
-
-        if errors.len() > 0 {
-            Err(errors.join("\n"))
-        } else {
-            Ok(Program { blocks })
-        }
+    if errors.len() > 0 {
+        Err(errors.join("\n"))
+    } else {
+        Ok(Program { blocks })
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use super::parser::*;
-    use crate::blocks::blocks::*;
+    use super::*;
+    use crate::blocks::*;
     use crate::expressions::*;
 
     #[test]
