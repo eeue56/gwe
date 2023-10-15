@@ -31,6 +31,22 @@ pub enum Expression {
     },
 }
 
+fn try_to_match<'a>(tokens: &mut Iter<'a, FullyQualifiedToken>, token: Token) -> Option<String> {
+    match tokens.next() {
+        Some(fqt) => {
+            if &token != &fqt.token {
+                Some(
+                    error_with_info::<()>(format!("Expected : but got {}", &fqt.token), fqt)
+                        .unwrap_err(),
+                )
+            } else {
+                None
+            }
+        }
+        None => Some(format!("Expected {} but got nothing", token)),
+    }
+}
+
 pub fn parse_expression<'a>(
     tokens: &mut Iter<'a, FullyQualifiedToken>,
 ) -> Result<Expression, String> {
@@ -72,24 +88,16 @@ pub fn parse_expression<'a>(
                     Token::Local => match tokens.next().map(|fqt|  &fqt.token) {
                         Some(Token::Identifier { body: name }) => {
                             // skip ":"
-                            match tokens.next() {
-                                Some(fqt) => match &fqt.token {
-                                    Token::Colon => (),
-                                    token => return error_with_info(format!("Expected : but got {}", token), fqt)
-                                }
-                                None => return Err(format!("Expected : but got nothing"))
+                            if let Some(error) = try_to_match(tokens, Token::Colon) {
+                                return Err(error);
                             }
 
                             match tokens.next() {
                                 Some(fqt) => match &fqt.token {
                                     Token::Identifier { body: type_name } => {
-
-                                        match tokens.next() {
-                                            Some(fqt) => match &fqt.token {
-                                                Token::Assign => (),
-                                                token => return error_with_info(format!("Expected = but got {}", token), fqt)
-                                            }
-                                            None => return Err(format!("Expected = but got nothing"))
+                                        // Skip "="
+                                        if let Some(error) = try_to_match(tokens, Token::Assign) {
+                                            return Err(error);
                                         }
 
                                         return parse_expression(tokens).map(|exp| Expression::LocalAssign {
@@ -129,23 +137,15 @@ pub fn parse_expression<'a>(
                         Some(fqt) => match &fqt.token {
                             Token::Identifier { body: name } => {
                                 // skip ":"
-                                match tokens.next() {
-                                    Some(fqt) => match &fqt.token {
-                                        Token::Colon => (),
-                                        token => return error_with_info(format!("Expected : but got {}", token), fqt)
-                                    }
-                                    None => return Err(format!("Expected : but got nothing"))
+                                if let Some(error) = try_to_match(tokens, Token::Colon) {
+                                    return Err(error);
                                 }
 
                                 match tokens.next().map(|fqt| &fqt.token) {
                                     Some(Token::Identifier { body: type_name }) => {
                                         // skip "="
-                                        match tokens.next() {
-                                            Some(fqt) => match &fqt.token {
-                                                Token::Assign => (),
-                                                token => return error_with_info(format!("Expected = but got {}", token), fqt)
-                                            }
-                                            None => return Err(format!("Expected = but got nothing"))
+                                        if let Some(error) = try_to_match(tokens, Token::Assign) {
+                                            return Err(error);
                                         }
 
                                         return parse_expression(tokens).map(|exp| Expression::GlobalAssign {

@@ -1,4 +1,3 @@
-
 use crate::blocks::{into_blocks, parse_block, Block};
 
 #[derive(PartialEq, Debug, Clone)]
@@ -388,6 +387,30 @@ fn say_hello(): void {
             parse(String::from(
                 "fn sayHello(): string {
     local var: i32;
+}"
+            )),
+            Err(String::from("Expected = but got nothing"))
+        )
+    }
+
+    #[test]
+    fn a_global_without_a_type_errors() {
+        assert_eq!(
+            parse(String::from(
+                "fn sayHello(): string {
+    global var = 5;
+}"
+            )),
+            Err(String::from("Expected : but got = at line 2, index 15"))
+        )
+    }
+
+    #[test]
+    fn a_global_without_a_assign_errors() {
+        assert_eq!(
+            parse(String::from(
+                "fn sayHello(): string {
+    global var: i32;
 }"
             )),
             Err(String::from("Expected = but got nothing"))
