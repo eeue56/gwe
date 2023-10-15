@@ -1,5 +1,5 @@
 use crate::{
-    blocks::{Block, Export, Function, Param},
+    blocks::{Block, Export, Function, Import, Param},
     expressions::Expression,
 };
 
@@ -111,6 +111,14 @@ fn generate_expression(expression: Expression) -> String {
         Expression::Return { expression } => generate_expression(*expression),
         Expression::Variable { body } => format!("(local.get ${})", body),
         Expression::String { body } => format!("\"{}\"", body),
+        Expression::FunctionCall { name, args } => {
+            let params = args
+                .iter()
+                .map(|e| generate_expression(*e.clone()))
+                .collect::<Vec<String>>()
+                .join("\n");
+            format!("{}\n(call ${})", params, name)
+        }
     }
 }
 
@@ -164,10 +172,31 @@ fn generate_export(export: Export) -> String {
     )
 }
 
+fn generate_import(import: Import) -> String {
+    let params: Vec<String> = import
+        .params
+        .into_iter()
+        .map(|param| param.type_name)
+        .collect();
+    let external_name = import
+        .external_name
+        .iter()
+        .map(|n| format!("\"{}\"", n))
+        .collect::<Vec<String>>()
+        .join(" ");
+    format!(
+        "(import {} (func ${} (param {})))",
+        external_name,
+        import.name,
+        params.join(" "),
+    )
+}
+
 fn generate_block(block: Block) -> String {
     match block {
         Block::FunctionBlock(function) => generate_function(function),
         Block::ExportBlock(export) => generate_export(export),
+        Block::ImportBlock(import) => generate_import(import),
     }
 }
 
@@ -336,6 +365,55 @@ export helloWorld hello_world",
     (f32.const 3.14)
   )
   (export \"helloWorld\" (func $hello_world))
+)",
+        );
+
+        match parse(input.clone()) {
+            Err(err) => panic!("{}", err),
+            Ok(program) => {
+                assert_eq!(generate(program), output);
+                ()
+            }
+        }
+    }
+
+    #[test]
+    fn import_function() {
+        let input = String::from("import fn log(number: i32) console.log");
+        let output = String::from(
+            "(module
+  (import \"console\" \"log\" (func $log (param i32)))
+)",
+        );
+
+        match parse(input.clone()) {
+            Err(err) => panic!("{}", err),
+            Ok(program) => {
+                assert_eq!(generate(program), output);
+                ()
+            }
+        }
+    }
+
+    #[test]
+    fn call_function() {
+        let input = String::from(
+            "import fn log(number: i32) console.log
+
+fn main(): void {
+    log(3.14);
+}
+
+export main main",
+        );
+        let output = String::from(
+            "(module
+  (import \"console\" \"log\" (func $log (param i32)))
+  (func $main
+    (f32.const 3.14)
+    (call $log)
+  )
+  (export \"main\" (func $main))
 )",
         );
 

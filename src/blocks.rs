@@ -1,3 +1,4 @@
+use std::slice::Iter;
 
 use crate::{
     expressions::{parse_expression, Expression},
@@ -25,16 +26,88 @@ pub struct Export {
 }
 
 #[derive(PartialEq, Debug, Clone)]
+pub struct Import {
+    pub name: String,
+    pub params: Vec<Param>,
+    pub external_name: Vec<String>,
+}
+
+#[derive(PartialEq, Debug, Clone)]
 pub enum Block {
     FunctionBlock(Function),
     ExportBlock(Export),
+    ImportBlock(Import),
 }
 
 pub fn into_blocks(body: String) -> Vec<String> {
-    body.split("\n}\n")
-        .map(str::to_string)
-        .filter(|block| block.len() > 0)
-        .collect()
+    let mut current_block: Vec<String> = Vec::new();
+    let mut blocks: Vec<Vec<String>> = vec![];
+
+    for line in body.split("\n") {
+        if line.trim().len() > 0 {
+            current_block.push(line.to_string());
+            if line.starts_with("export") || line.starts_with("import") || line == "}" {
+                blocks.push(current_block.clone());
+                current_block.clear();
+            }
+        }
+    }
+
+    if current_block.len() > 0 {
+        blocks.push(current_block.clone());
+    }
+
+    blocks.iter().map(|b| b.join("\n")).collect::<Vec<String>>()
+}
+
+fn parse_params<'a>(
+    tokens: &mut Iter<'a, FullyQualifiedToken>,
+    entry_fqt: FullyQualifiedToken,
+) -> Result<Vec<Param>, String> {
+    let param_name: &mut Option<String> = &mut None;
+
+    let mut params: Vec<Param> = vec![];
+
+    while let token = tokens.next().map(|fqt| &fqt.token) {
+        match token {
+            Some(Token::RightParen) => break,
+            Some(Token::Identifier { body }) => match param_name {
+                Some(n) => {
+                    params.push(Param {
+                        name: n.to_string(),
+                        type_name: body.to_string(),
+                    });
+
+                    param_name.take();
+                    ()
+                }
+                None => {
+                    param_name.replace(body.to_string());
+                    ()
+                }
+            },
+            Some(Token::Comma) => {
+                param_name.take();
+                ()
+            }
+            Some(Token::Colon) => (),
+            Some(value) => {
+                return Err(format!(
+                    "Failed parsing params, got unexpected token {}",
+                    value
+                ))
+            }
+            None => return Err(String::from("Failed parsing params")),
+        }
+    }
+    if let Some(name) = param_name {
+        return error_with_info(
+            format!("Failed to find type for param {}", name),
+            &entry_fqt,
+        );
+    }
+
+    Ok(params)
 }
 
 fn parse_function(tokens: Vec<FullyQualifiedToken>) -> Result<Function, String> {
@@ -72,49 +145,10 @@ fn parse_function(tokens: Vec<FullyQualifiedToken>) -> Result<Function, String> 
         None => return Err(format!("Expected parens but got nothing")),
     }
 
-    let param_name: &mut Option<String> = &mut None;
-
-    let mut params: Vec<Param> = vec![];
-
-    while let token = tokens.next().map(|fqt| &fqt.token) {
-        match token {
-            Some(Token::RightParen) => break,
-            Some(Token::Identifier { body }) => match param_name {
-                Some(n) => {
-                    params.push(Param {
-                        name: n.to_string(),
-                        type_name: body.to_string(),
-                    });
-
-                    param_name.take();
-                    ()
-                }
-                None => {
-                    param_name.replace(body.to_string());
-                    ()
-                }
-            },
-            Some(Token::Comma) => {
-                param_name.take();
-                ()
-            }
-            Some(Token::Colon) => (),
-            Some(value) => {
-                return Err(format!(
-                    "Failed parsing params, got unexpected token {}",
-                    value
-                ))
-            }
-            None => return Err(String::from("Failed parsing params")),
-        }
-    }
-
-    if let Some(name) = param_name {
-        return error_with_info(
-            format!("Failed to find type for param {}", name),
-            open_parens.unwrap(),
-        );
-    }
+    let params = match parse_params(&mut tokens, open_parens.unwrap().clone()) {
+        Err(error) => return Err(error),
+        Ok(params) => params,
+    };
 
     match tokens.next() {
         Some(fqt) => match &fqt.token {
@@ -225,12 +259,74 @@ fn parse_export(tokens: Vec<FullyQualifiedToken>) -> Result<Export, String> {
     })
 }
 
+fn parse_import(tokens: Vec<FullyQualifiedToken>) -> Result<Import, String> {
+    let mut tokens = tokens.iter();
+    tokens.next();
+    tokens.next();
+
+    let name = match tokens.next() {
+        Some(fqt) => match &fqt.token {
+            Token::Identifier { body } => body,
+            token => {
+                return error_with_info(
+                    format!("Expected function name in import, got {}", token),
+                    fqt,
+                )
+            }
+        },
+        None => return Err(String::from("Expected function name in export")),
+    };
+
+    let open_parens = tokens.next();
+
+    match open_parens.map(|fqt| &fqt.token) {
+        Some(Token::LeftParen) => (),
+        Some(token) => {
+            return error_with_info(
+                format!("Expected parens but got {}", token),
+                open_parens.unwrap(),
+            )
+        }
+        None => return Err(format!("Expected parens but got nothing")),
+    }
+
+    let params = match parse_params(&mut tokens, open_parens.unwrap().clone()) {
+        Err(error) => return Err(error),
+        Ok(params) => params,
+    };
+
+    let mut external_name: Vec<String> = vec![];
+
+    while let fqt = tokens.next() {
+        match fqt {
+            Some(token) => match &token.token {
+                Token::Identifier { body } => external_name.push(body.to_string()),
+                Token::Dot => (),
+                other => {
+                    return error_with_info(
+                        format!("Expected dot or identifier, got {}", other),
+                        token,
+                    )
+                }
+            },
+            None => break,
+        }
+    }
+
+    Ok(Import {
+        name: name.to_string(),
+        params,
+        external_name,
+    })
+}
+
 pub fn parse_block(body: String) -> Result<Block, String> {
     let tokens = tokenize(body);
 
     match tokens.first().map(|fqt| &fqt.token) {
         Some(Token::Fn) => parse_function(tokens).map(|f| Block::FunctionBlock(f)),
         Some(Token::Export) => parse_export(tokens).map(|e| Block::ExportBlock(e)),
+        Some(Token::Import) => parse_import(tokens).map(|i| Block::ImportBlock(i)),
         _ => Err(String::from("Unrecoginzed block")),
     }
 }
@@ -248,6 +344,45 @@ mod tests {
                 external_name: String::from("sayHello"),
                 function_name: String::from("say_hello")
             }))
+        )
+    }
+
+    #[test]
+    fn multiple_blocks() {
+        let blocks = into_blocks(String::from(
+            "import fn log(number: i32) console.log
+
+fn main(): void {
+    log(3.14);
+}",
+        ));
+
+        assert_eq!(
+            blocks,
+            vec![
+                "import fn log(number: i32) console.log",
+                "fn main(): void {
+    log(3.14);
+}"
+            ]
+        )
+    }
+
+    #[test]
+    fn single_block() {
+        let blocks = into_blocks(String::from(
+            "fn main(): void {
+    log(3.14);
+}",
+        ));
+
+        assert_eq!(
+            blocks,
+            vec![
+                "fn main(): void {
+    log(3.14);
+}"
+            ]
         )
     }
 }

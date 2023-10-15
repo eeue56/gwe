@@ -1,0 +1,7 @@
+import fn log(number: f32) console.log
+
+fn main(): void {
+    log(3.14);
+}
+
+export main main

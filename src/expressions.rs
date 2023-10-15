@@ -29,6 +29,10 @@ pub enum Expression {
     String {
         body: String,
     },
+    FunctionCall {
+        name: String,
+        args: Vec<Box<Expression>>,
+    },
 }
 
 fn try_to_match<'a>(tokens: &mut Iter<'a, FullyQualifiedToken>, token: Token) -> Option<String> {
@@ -45,6 +49,40 @@ fn try_to_match<'a>(tokens: &mut Iter<'a, FullyQualifiedToken>, token: Token) ->
         }
         None => Some(format!("Expected {} but got nothing", token)),
     }
+}
+
+fn parse_params<'a>(tokens: &mut Iter<'a, FullyQualifiedToken>) -> Result<Vec<Expression>, String> {
+    let mut tokens_for_current_expression: Vec<FullyQualifiedToken> = vec![];
+    let mut arguments: Vec<Expression> = vec![];
+
+    while let maybe_fqt = tokens.next() {
+        match maybe_fqt {
+            Some(fqt) => match &fqt.token {
+                Token::RightParen => break,
+                Token::Comma => {
+                    match parse_expression(&mut tokens_for_current_expression.iter()) {
+                        Ok(exp) => arguments.push(exp),
+                        Err(error) => return Err(error),
+                    };
+
+                    tokens_for_current_expression.clear();
+                }
+                _ => {
+                    tokens_for_current_expression.push(fqt.clone());
+                }
+            },
+            None => return Err(String::from("Failed parsing params")),
+        }
+    }
+
+    if tokens_for_current_expression.len() > 0 {
+        match parse_expression(&mut tokens_for_current_expression.iter()) {
+            Ok(exp) => arguments.push(exp),
+            Err(error) => return Err(error),
+        };
+    }
+
+    Ok(arguments)
 }
 
 pub fn parse_expression<'a>(
@@ -183,9 +221,18 @@ pub fn parse_expression<'a>(
                         }
                     },
                     Token::Identifier { body } => {
-                        return Ok(Expression::Variable {
-                            body: body.to_string(),
-                        })
+                        match tokens.next() {
+                            Some(fqt) => match &fqt.token {
+                                Token::LeftParen => match parse_params(tokens) {
+                                    Ok(expressions) => return Ok(Expression::FunctionCall { name: body.to_string(), args: expressions.iter().map(|e| Box::new(e.clone())).collect::<Vec<Box<Expression>>>() }),
+                                    Err(error) => return Err(error)
+                                },
+                                token => return error_with_info(format!("Unexpected token {}", token), fqt)
+                            }
+                            None => return Ok(Expression::Variable {
+                                body: body.to_string(),
+                            })
+                        }
                     }
                     Token::RightBracket => {},
                     Token::Text { body } => return Ok(Expression::String { body: body.to_string() }),

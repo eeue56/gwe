@@ -1,6 +1,5 @@
-
 use crate::{
-    blocks::{Block, Export, Function, Param},
+    blocks::{Block, Export, Function, Import, Param},
     expressions::Expression,
 };
 
@@ -64,6 +63,15 @@ fn generate_expression(expression: Expression) -> String {
         }
         Expression::Variable { body } => body,
         Expression::String { body } => format!("\"{}\"", body),
+        Expression::FunctionCall { name, args } => {
+            let params = args
+                .iter()
+                .map(|e| generate_expression(*e.clone()))
+                .collect::<Vec<String>>()
+                .join(", ");
+
+            format!("{}({})", name, params)
+        }
     }
 }
 
@@ -101,10 +109,22 @@ fn generate_export(export: Export) -> String {
     format!("export {} {}", export.external_name, export.function_name)
 }
 
+fn generate_import(import: Import) -> String {
+    let params: Vec<String> = import.params.into_iter().map(generate_param).collect();
+    let external_name = import.external_name.join(".");
+    format!(
+        "import fn {}({}) {}",
+        import.name,
+        params.join(", "),
+        external_name
+    )
+}
+
 fn generate_block(block: Block) -> String {
     match block {
         Block::FunctionBlock(function) => generate_function(function),
         Block::ExportBlock(export) => generate_export(export),
+        Block::ImportBlock(import) => generate_import(import),
     }
 }
 
@@ -222,6 +242,40 @@ mod tests {
 }
 
 export helloWorld hello_world",
+        );
+
+        match parse(input.clone()) {
+            Err(err) => panic!("{}", err),
+            Ok(program) => {
+                assert_eq!(generate(program), input);
+                ()
+            }
+        }
+    }
+
+    #[test]
+    fn import_function() {
+        let input = String::from("import fn log(number: i32) console.log");
+
+        match parse(input.clone()) {
+            Err(err) => panic!("{}", err),
+            Ok(program) => {
+                assert_eq!(generate(program), input);
+                ()
+            }
+        }
+    }
+
+    #[test]
+    fn call_function() {
+        let input = String::from(
+            "import fn log(number: i32) console.log
+
+fn main(): void {
+    log(3.14);
+}
+
+export main main",
         );
 
         match parse(input.clone()) {

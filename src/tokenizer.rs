@@ -26,6 +26,8 @@ pub enum Token {
     Text { body: String },
     Plus,
     Export,
+    Import,
+    Dot,
 }
 
 #[derive(PartialEq, Debug, Clone)]
@@ -36,8 +38,6 @@ pub struct FullyQualifiedToken {
 
 impl Display for Token {
     fn fmt(&self, f: &mut Formatter) -> std::fmt::Result {
-        // Use `self.number` to refer to each positional data point.
-
         write!(
             f,
             "{}",
@@ -59,6 +59,8 @@ impl Display for Token {
                 Token::Plus => "+",
                 Token::Number { body } => body,
                 Token::Export => "export",
+                Token::Import => "import",
+                Token::Dot => ".",
             }
         )
     }
@@ -96,6 +98,7 @@ fn possibly_push_current_buffer(
             "local" => Token::Local,
             "global" => Token::Global,
             "export" => Token::Export,
+            "import" => Token::Import,
             x if is_number_string(x) => Token::Number { body: chars },
             _ => Token::Identifier { body: chars },
         };
@@ -308,6 +311,21 @@ pub fn tokenize(body: String) -> Vec<FullyQualifiedToken> {
             {
                 current_buffer.push(char)
             }
+            '.' => {
+                possibly_push_current_buffer(
+                    &mut tokens,
+                    &mut current_buffer,
+                    line_number,
+                    char_index,
+                );
+                tokens.push(FullyQualifiedToken {
+                    token: Token::Dot,
+                    info: TokenInfo {
+                        line: line_number,
+                        index: char_index,
+                    },
+                })
+            }
             char if is_identifier_char(char) => current_buffer.push(char),
             _ => (),
         }
@@ -456,6 +474,39 @@ mod tests {
                 Token::Number {
                     body: String::from("3.14")
                 }
+            ]
+        )
+    }
+
+    #[test]
+    fn import_passes() {
+        assert_eq!(
+            tokenize(String::from("import fn log(number: i32) console.log"))
+                .iter()
+                .map(|fqt| fqt.clone().token)
+                .collect::<Vec<Token>>(),
+            vec![
+                Token::Import,
+                Token::Fn,
+                Token::Identifier {
+                    body: String::from("log")
+                },
+                Token::LeftParen,
+                Token::Identifier {
+                    body: String::from("number")
+                },
+                Token::Colon,
+                Token::Identifier {
+                    body: String::from("i32")
+                },
+                Token::RightParen,
+                Token::Identifier {
+                    body: String::from("console")
+                },
+                Token::Dot,
+                Token::Identifier {
+                    body: String::from("log")
+                },
             ]
         )
     }
