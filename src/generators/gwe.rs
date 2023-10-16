@@ -1,5 +1,5 @@
 use crate::{
-    blocks::{Block, Export, Function, Import, Param},
+    blocks::{Block, Export, Function, ImportFunction, ImportMemory, Param},
     expressions::Expression,
 };
 
@@ -109,7 +109,7 @@ fn generate_export(export: Export) -> String {
     format!("export {} {}", export.external_name, export.function_name)
 }
 
-fn generate_import(import: Import) -> String {
+fn generate_import_function(import: ImportFunction) -> String {
     let params: Vec<String> = import.params.into_iter().map(generate_param).collect();
     let external_name = import.external_name.join(".");
     format!(
@@ -120,11 +120,17 @@ fn generate_import(import: Import) -> String {
     )
 }
 
+fn generate_import_memory(import: ImportMemory) -> String {
+    let external_name = import.external_name.join(".");
+    format!("import memory {} {}", import.size, external_name)
+}
+
 fn generate_block(block: Block) -> String {
     match block {
         Block::FunctionBlock(function) => generate_function(function),
         Block::ExportBlock(export) => generate_export(export),
-        Block::ImportBlock(import) => generate_import(import),
+        Block::ImportFunctionBlock(import) => generate_import_function(import),
+        Block::ImportMemoryBlock(import) => generate_import_memory(import),
     }
 }
 
@@ -270,6 +276,27 @@ export helloWorld hello_world",
     fn call_function() {
         let input = String::from(
             "import fn log(number: i32) console.log
+
+fn main(): void {
+    log(3.14);
+}
+
+export main main",
+        );
+
+        match parse(input.clone()) {
+            Err(err) => panic!("{}", err),
+            Ok(program) => {
+                assert_eq!(generate(program), input);
+                ()
+            }
+        }
+    }
+
+    #[test]
+    fn import_memory() {
+        let input = String::from(
+            "import memory 1 js.mem
 
 fn main(): void {
     log(3.14);

@@ -26,9 +26,15 @@ pub struct Export {
 }
 
 #[derive(PartialEq, Debug, Clone)]
-pub struct Import {
+pub struct ImportFunction {
     pub name: String,
     pub params: Vec<Param>,
+    pub external_name: Vec<String>,
+}
+
+#[derive(PartialEq, Debug, Clone)]
+pub struct ImportMemory {
+    pub size: i32,
     pub external_name: Vec<String>,
 }
 
@@ -36,7 +42,8 @@ pub struct Import {
 pub enum Block {
     FunctionBlock(Function),
     ExportBlock(Export),
-    ImportBlock(Import),
+    ImportFunctionBlock(ImportFunction),
+    ImportMemoryBlock(ImportMemory),
 }
 
 pub fn into_blocks(body: String) -> Vec<String> {
@@ -259,9 +266,12 @@ fn parse_export(tokens: Vec<FullyQualifiedToken>) -> Result<Export, String> {
     })
 }
 
-fn parse_import(tokens: Vec<FullyQualifiedToken>) -> Result<Import, String> {
+fn parse_import_function(tokens: Vec<FullyQualifiedToken>) -> Result<ImportFunction, String> {
     let mut tokens = tokens.iter();
+
+    // import
     tokens.next();
+    // fn
     tokens.next();
 
     let name = match tokens.next() {
@@ -313,9 +323,52 @@ fn parse_import(tokens: Vec<FullyQualifiedToken>) -> Result<Import, String> {
         }
     }
 
-    Ok(Import {
+    Ok(ImportFunction {
         name: name.to_string(),
         params,
+        external_name,
+    })
+}
+
+fn parse_import_memory(tokens: Vec<FullyQualifiedToken>) -> Result<ImportMemory, String> {
+    let mut tokens = tokens.iter();
+
+    // import
+    tokens.next();
+    // memory
+    tokens.next();
+
+    let size = match tokens.next() {
+        Some(fqt) => match &fqt.token {
+            Token::Number { body } => match body.parse::<i32>() {
+                Ok(v) => v,
+                Err(err) => return Err(err.to_string()),
+            },
+            token => return error_with_info(format!("Unexpected token {} in import", token), fqt),
+        },
+        None => return Err(String::from("Expected memory size but got nothing")),
+    };
+
+    let mut external_name: Vec<String> = vec![];
+
+    while let fqt = tokens.next() {
+        match fqt {
+            Some(token) => match &token.token {
+                Token::Identifier { body } => external_name.push(body.to_string()),
+                Token::Dot => (),
+                other => {
+                    return error_with_info(
+                        format!("Expected dot or identifier, got {}", other),
+                        token,
+                    )
+                }
+            },
+            None => break,
+        }
+    }
+
+    Ok(ImportMemory {
+        size,
         external_name,
     })
 }
@@ -326,7 +379,11 @@ pub fn parse_block(body: String) -> Result<Block, String> {
     match tokens.first().map(|fqt| &fqt.token) {
         Some(Token::Fn) => parse_function(tokens).map(|f| Block::FunctionBlock(f)),
         Some(Token::Export) => parse_export(tokens).map(|e| Block::ExportBlock(e)),
-        Some(Token::Import) => parse_import(tokens).map(|i| Block::ImportBlock(i)),
+        Some(Token::Import) => match tokens.get(1).map(|fqt| &fqt.token) {
+            Some(Token::Fn) => parse_import_function(tokens).map(|i| Block::ImportFunctionBlock(i)),
+            Some(Token::Memory) => parse_import_memory(tokens).map(|i| Block::ImportMemoryBlock(i)),
+            _ => Err(String::from("Unexpected token in import statement")),
+        },
         _ => Err(String::from("Unrecoginzed block")),
     }
 }
@@ -351,6 +408,7 @@ mod tests {
     fn multiple_blocks() {
         let blocks = into_blocks(String::from(
             "import fn log(number: i32) console.log
+import memory 1 js.mem
 
 fn main(): void {
     log(3.14);
@@ -361,6 +419,7 @@ fn main(): void {
             blocks,
             vec![
                 "import fn log(number: i32) console.log",
+                "import memory 1 js.mem",
                 "fn main(): void {
     log(3.14);
 }"

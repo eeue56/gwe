@@ -1,5 +1,7 @@
+use std::vec;
+
 use crate::{
-    blocks::{Block, Export, Function, Import, Param},
+    blocks::{Block, Export, Function, ImportFunction, ImportMemory, Param},
     expressions::Expression,
 };
 
@@ -172,7 +174,7 @@ fn generate_export(export: Export) -> String {
     )
 }
 
-fn generate_import(import: Import) -> String {
+fn generate_import_function(import: ImportFunction) -> String {
     let params: Vec<String> = import
         .params
         .into_iter()
@@ -192,11 +194,22 @@ fn generate_import(import: Import) -> String {
     )
 }
 
+fn generate_import_memory(import: ImportMemory) -> String {
+    let external_name = import
+        .external_name
+        .iter()
+        .map(|n| format!("\"{}\"", n))
+        .collect::<Vec<String>>()
+        .join(" ");
+    format!("(import {} (memory {}))", external_name, import.size)
+}
+
 fn generate_block(block: Block) -> String {
     match block {
         Block::FunctionBlock(function) => generate_function(function),
         Block::ExportBlock(export) => generate_export(export),
-        Block::ImportBlock(import) => generate_import(import),
+        Block::ImportFunctionBlock(import) => generate_import_function(import),
+        Block::ImportMemoryBlock(import) => generate_import_memory(import),
     }
 }
 

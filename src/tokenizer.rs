@@ -14,6 +14,7 @@ pub enum Token {
     Identifier { body: String },
     Number { body: String },
     Fn,
+    Memory,
     Colon,
     LeftBracket,
     RightBracket,
@@ -46,6 +47,7 @@ impl Display for Token {
                 Token::RightParen => "(",
                 Token::Identifier { body } => body,
                 Token::Fn => "fn",
+                Token::Memory => "memory",
                 Token::Colon => ":",
                 Token::LeftBracket => "{",
                 Token::RightBracket => "}",
@@ -94,6 +96,7 @@ fn possibly_push_current_buffer(
 
         let token = match chars.as_ref() {
             "fn" => Token::Fn,
+            "memory" => Token::Memory,
             "return" => Token::Return,
             "local" => Token::Local,
             "global" => Token::Global,
@@ -506,6 +509,30 @@ mod tests {
                 Token::Dot,
                 Token::Identifier {
                     body: String::from("log")
+                },
+            ]
+        )
+    }
+
+    #[test]
+    fn import_memory_passes() {
+        assert_eq!(
+            tokenize(String::from("import memory 1 js.mem"))
+                .iter()
+                .map(|fqt| fqt.clone().token)
+                .collect::<Vec<Token>>(),
+            vec![
+                Token::Import,
+                Token::Memory,
+                Token::Number {
+                    body: String::from("1")
+                },
+                Token::Identifier {
+                    body: String::from("js")
+                },
+                Token::Dot,
+                Token::Identifier {
+                    body: String::from("mem")
                 },
             ]
         )
