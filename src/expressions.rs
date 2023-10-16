@@ -33,6 +33,10 @@ pub enum Expression {
         name: String,
         args: Vec<Box<Expression>>,
     },
+    MemoryReference {
+        offset: i32,
+        length: i32,
+    },
 }
 
 fn try_to_match<'a>(tokens: &mut Iter<'a, FullyQualifiedToken>, token: Token) -> Option<String> {

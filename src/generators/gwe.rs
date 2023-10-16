@@ -72,6 +72,10 @@ fn generate_expression(expression: Expression) -> String {
 
             format!("{}({})", name, params)
         }
+        Expression::MemoryReference {
+            offset: _,
+            length: _,
+        } => String::from(""),
     }
 }
 
