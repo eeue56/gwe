@@ -1,0 +1,9 @@
+import fn log(offset: i32, length: i32) console.log
+import memory 1 js.mem
+
+fn main(): void {
+    local message: string = "Hello world";
+    log();
+}
+
+export main main

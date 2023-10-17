@@ -132,7 +132,7 @@ fn extract_strings(expressions: Vec<Expression>) -> (Option<String>, Vec<Express
             .map(|(offset, string)| format!("(data (i32.const {}) \"{}\")", offset, string))
             .collect::<Vec<String>>()
             .join("\n");
-        Some(format!("(memory 1)\n{}\n", datas))
+        Some(format!("{}\n", datas))
     };
 
     (output, new_expressions)
@@ -507,6 +507,7 @@ export main main",
     fn string_function() {
         let input = String::from(
             "import fn log(offset: i32, length: i32) console.log
+import memory 1 js.mem
 
 fn main(): void {
     local message: string = \"Hello world\";
@@ -518,7 +519,7 @@ export main main",
         let output = String::from(
             "(module
   (import \"console\" \"log\" (func $log (param i32 i32)))
-  (memory 1)
+  (import \"js\" \"mem\" (memory 1))
   (data (i32.const 0) \"Hello world\")
   (func $main
     (i32.const 0)
