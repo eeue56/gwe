@@ -29,6 +29,8 @@ pub enum Token {
     Export,
     Import,
     Dot,
+    If,
+    Else,
 }
 
 #[derive(PartialEq, Debug, Clone)]
@@ -63,6 +65,8 @@ impl Display for Token {
                 Token::Export => "export",
                 Token::Import => "import",
                 Token::Dot => ".",
+                Token::If => "if",
+                Token::Else => "else",
             }
         )
     }
@@ -102,6 +106,8 @@ fn possibly_push_current_buffer(
             "global" => Token::Global,
             "export" => Token::Export,
             "import" => Token::Import,
+            "if" => Token::If,
+            "else" => Token::Else,
             x if is_number_string(x) => Token::Number { body: chars },
             _ => Token::Identifier { body: chars },
         };

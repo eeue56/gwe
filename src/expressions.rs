@@ -37,6 +37,11 @@ pub enum Expression {
         offset: i32,
         length: i32,
     },
+    IfStatement {
+        predicate: Box<Expression>,
+        success: Box<Expression>,
+        fail: Box<Expression>,
+    },
 }
 
 fn try_to_match<'a>(tokens: &mut Iter<'a, FullyQualifiedToken>, token: Token) -> Option<String> {
@@ -53,6 +58,48 @@ fn try_to_match<'a>(tokens: &mut Iter<'a, FullyQualifiedToken>, token: Token) ->
         }
         None => Some(format!("Expected {} but got nothing", token)),
     }
+}
+
+fn between_next(
+    tokens: Vec<FullyQualifiedToken>,
+    start: Token,
+    end: Token,
+) -> Option<Vec<FullyQualifiedToken>> {
+    let mut new_tokens: Vec<FullyQualifiedToken> = vec![];
+    let mut seen_start = false;
+
+    for fqt in tokens {
+        if fqt.token == start {
+            seen_start = true;
+        } else if fqt.token == end {
+            return Some(new_tokens);
+        } else if seen_start {
+            new_tokens.push(fqt);
+        }
+    }
+
+    None
+}
+
+fn between_next_next(
+    tokens: Vec<FullyQualifiedToken>,
+    start: Token,
+    end: Token,
+) -> Option<Vec<FullyQualifiedToken>> {
+    let mut new_tokens: Vec<FullyQualifiedToken> = vec![];
+    let mut seen_start = 0;
+
+    for fqt in tokens {
+        if fqt.token == start {
+            seen_start += 1;
+        } else if seen_start > 1 && fqt.token == end {
+            return Some(new_tokens);
+        } else if seen_start > 1 {
+            new_tokens.push(fqt);
+        }
+    }
+
+    None
 }
 
 fn parse_params<'a>(tokens: &mut Iter<'a, FullyQualifiedToken>) -> Result<Vec<Expression>, String> {
@@ -241,6 +288,44 @@ pub fn parse_expression<'a>(
                     Token::RightBracket => {},
                     Token::Text { body } => return Ok(Expression::String { body: body.to_string() }),
                     Token::Number { body } => return Ok(Expression::Number {value: body.to_string()}),
+                    Token::If => {
+                        let tokens_clone = tokens.clone().map(|fqt| fqt.clone()).collect::<Vec<FullyQualifiedToken>>();
+                        let predicate_tokens = match between_next(tokens_clone.clone(), Token::LeftParen, Token::RightParen) {
+                            Some(fqts) => fqts,
+                            None => return Err(String::from("Couldn't find predicate tokens"))
+                        };
+
+                        let predicate = match parse_expression(&mut predicate_tokens.iter()) {
+                            Err(error) => return Err(error),
+                            Ok(v) => v,
+                        };
+
+                        let success_tokens = match between_next(tokens_clone.clone(), Token::LeftBracket, Token::RightBracket) {
+                            Some(fqts) => fqts,
+                            None => return Err(String::from("Couldn't find success tokens"))
+                        };
+
+                        let success = match parse_expression(&mut success_tokens.iter()) {
+                            Err(error) => return Err(error),
+                            Ok(v) => v,
+                        };
+
+                        let fail_tokens = match between_next_next(tokens_clone.clone(), Token::LeftBracket, Token::RightBracket) {
+                            Some(fqts) => fqts,
+                            None => return Err(String::from("Couldn't find fail tokens"))
+                        };
+
+                        let fail = match parse_expression(&mut fail_tokens.iter()) {
+                            Err(error) => return Err(error),
+                            Ok(v) => v,
+                        };
+
+                        return Ok(Expression::IfStatement {
+                            predicate: Box::new(predicate),
+                            success: Box::new(success),
+                            fail: Box::new(fail)
+                        })
+                    }
                     value => {
                         return error_with_info(format!(
                             "Failed parsing expression, got unexpected token {}",

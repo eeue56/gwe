@@ -76,6 +76,18 @@ fn generate_expression(expression: Expression) -> String {
             offset: _,
             length: _,
         } => String::from(""),
+        Expression::IfStatement {
+            predicate,
+            success,
+            fail,
+        } => {
+            format!(
+                "if ({}) {{ {} }} {{ {} }}",
+                generate_expression(*predicate),
+                generate_expression(*success),
+                generate_expression(*fail)
+            )
+        }
     }
 }
 
@@ -304,6 +316,27 @@ export main main",
 
 fn main(): void {
     log(3.14);
+}
+
+export main main",
+        );
+
+        match parse(input.clone()) {
+            Err(err) => panic!("{}", err),
+            Ok(program) => {
+                assert_eq!(generate(program), input);
+                ()
+            }
+        }
+    }
+
+    #[test]
+    fn if_statement() {
+        let input = String::from(
+            "import memory 1 js.mem
+
+fn main(): void {
+    if (0) { log(3.14) } { log(42) };
 }
 
 export main main",

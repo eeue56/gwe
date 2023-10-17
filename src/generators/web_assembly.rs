@@ -179,6 +179,26 @@ fn generate_expression(expression: Expression) -> String {
         Expression::MemoryReference { offset, length } => {
             format!("(i32.const {})\n(i32.const {})", offset, length)
         }
+        Expression::IfStatement {
+            predicate,
+            success,
+            fail,
+        } => {
+            format!(
+                "(if
+  {}
+  (then
+{}
+  )
+  (else
+{}
+  )
+)",
+                generate_expression(*predicate),
+                indent(indent(generate_expression(*success))),
+                indent(indent(generate_expression(*fail)))
+            )
+        }
     }
 }
 
@@ -561,6 +581,51 @@ export main main",
   (func $main
     (f32.const 3.14)
     (call $log)
+  )
+  (export \"main\" (func $main))
+)",
+        );
+
+        match parse(input.clone()) {
+            Err(err) => panic!("{}", err),
+            Ok(program) => {
+                assert_eq!(
+                    generate(program.clone()),
+                    output,
+                    "Generated:\n{}\n\n\n========\nExpected:\n{}",
+                    generate(program.clone()),
+                    output
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn if_statement() {
+        let input = String::from(
+            "import memory 1 js.mem
+
+fn main(): void {
+    if (0) { log(3.14) } { log(42) };
+}
+
+export main main",
+        );
+        let output = String::from(
+            "(module
+  (import \"js\" \"mem\" (memory 1))
+  (func $main
+    (if
+      (f32.const 0)
+      (then
+        (f32.const 3.14)
+        (call $log)
+      )
+      (else
+        (f32.const 42)
+        (call $log)
+      )
+    )
   )
   (export \"main\" (func $main))
 )",
