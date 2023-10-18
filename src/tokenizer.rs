@@ -31,6 +31,8 @@ pub enum Token {
     Dot,
     If,
     Else,
+    True,
+    False,
 }
 
 #[derive(PartialEq, Debug, Clone)]
@@ -67,6 +69,8 @@ impl Display for Token {
                 Token::Dot => ".",
                 Token::If => "if",
                 Token::Else => "else",
+                Token::True => "true",
+                Token::False => "false",
             }
         )
     }
@@ -108,6 +112,8 @@ fn possibly_push_current_buffer(
             "import" => Token::Import,
             "if" => Token::If,
             "else" => Token::Else,
+            "true" => Token::True,
+            "false" => Token::False,
             x if is_number_string(x) => Token::Number { body: chars },
             _ => Token::Identifier { body: chars },
         };

@@ -88,6 +88,7 @@ fn generate_expression(expression: Expression) -> String {
                 generate_expression(*fail)
             )
         }
+        Expression::Boolean { value } => format!("{}", value),
     }
 }
 
@@ -337,6 +338,27 @@ export main main",
 
 fn main(): void {
     if (0) { log(3.14) } { log(42) };
+}
+
+export main main",
+        );
+
+        match parse(input.clone()) {
+            Err(err) => panic!("{}", err),
+            Ok(program) => {
+                assert_eq!(generate(program), input);
+                ()
+            }
+        }
+    }
+
+    #[test]
+    fn boolean() {
+        let input = String::from(
+            "import memory 1 js.mem
+
+fn main(): void {
+    if (true) { log(true) } { log(false) };
 }
 
 export main main",

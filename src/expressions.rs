@@ -42,6 +42,9 @@ pub enum Expression {
         success: Box<Expression>,
         fail: Box<Expression>,
     },
+    Boolean {
+        value: bool,
+    },
 }
 
 fn try_to_match<'a>(tokens: &mut Iter<'a, FullyQualifiedToken>, token: Token) -> Option<String> {
@@ -324,8 +327,11 @@ pub fn parse_expression<'a>(
                             predicate: Box::new(predicate),
                             success: Box::new(success),
                             fail: Box::new(fail)
+
                         })
                     }
+                    Token::True => return Ok(Expression::Boolean { value: true }),
+                    Token::False => return Ok(Expression::Boolean { value: false }),
                     value => {
                         return error_with_info(format!(
                             "Failed parsing expression, got unexpected token {}",

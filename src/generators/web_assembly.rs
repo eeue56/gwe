@@ -199,6 +199,13 @@ fn generate_expression(expression: Expression) -> String {
                 indent(indent(generate_expression(*fail)))
             )
         }
+        Expression::Boolean { value } => {
+            if value {
+                format!("(i32.const 0)")
+            } else {
+                format!("(i32.const 1)")
+            }
+        }
     }
 }
 
@@ -623,6 +630,52 @@ export main main",
       )
       (else
         (f32.const 42)
+        (call $log)
+      )
+    )
+  )
+  (export \"main\" (func $main))
+)",
+        );
+
+        match parse(input.clone()) {
+            Err(err) => panic!("{}", err),
+            Ok(program) => {
+                assert_eq!(
+                    generate(program.clone()),
+                    output,
+                    "Generated:\n{}\n\n\n========\nExpected:\n{}",
+                    generate(program.clone()),
+                    output
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn boolean() {
+        let input = String::from(
+            "import memory 1 js.mem
+
+fn main(): void {
+    if (true) { log(true) } { log(false) };
+}
+
+export main main",
+        );
+
+        let output = String::from(
+            "(module
+  (import \"js\" \"mem\" (memory 1))
+  (func $main
+    (if
+      (i32.const 0)
+      (then
+        (i32.const 0)
+        (call $log)
+      )
+      (else
+        (i32.const 1)
         (call $log)
       )
     )
