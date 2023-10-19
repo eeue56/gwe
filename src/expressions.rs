@@ -1,4 +1,7 @@
-use crate::tokenizer::{error_with_info, FullyQualifiedToken, Token};
+use crate::{
+    blocks::Param,
+    tokenizer::{error_with_info, FullyQualifiedToken, Token},
+};
 use std::slice::Iter;
 
 #[derive(PartialEq, Debug, Clone)]
@@ -8,6 +11,7 @@ pub enum Expression {
     },
     Variable {
         body: String,
+        type_name: String,
     },
     Return {
         expression: Box<Expression>,
@@ -105,7 +109,11 @@ fn between_next_next(
     None
 }
 
-fn parse_params<'a>(tokens: &mut Iter<'a, FullyQualifiedToken>) -> Result<Vec<Expression>, String> {
+fn parse_params<'a>(
+    tokens: &mut Iter<'a, FullyQualifiedToken>,
+    previous_expressions: Vec<Expression>,
+    local_params: Vec<Param>,
+) -> Result<Vec<Expression>, String> {
     let mut tokens_for_current_expression: Vec<FullyQualifiedToken> = vec![];
     let mut arguments: Vec<Expression> = vec![];
 
@@ -114,7 +122,11 @@ fn parse_params<'a>(tokens: &mut Iter<'a, FullyQualifiedToken>) -> Result<Vec<Ex
             Some(fqt) => match &fqt.token {
                 Token::RightParen => break,
                 Token::Comma => {
-                    match parse_expression(&mut tokens_for_current_expression.iter()) {
+                    match parse_expression(
+                        &mut tokens_for_current_expression.iter(),
+                        previous_expressions.clone(),
+                        local_params.clone(),
+                    ) {
                         Ok(exp) => arguments.push(exp),
                         Err(error) => return Err(error),
                     };
@@ -130,7 +142,11 @@ fn parse_params<'a>(tokens: &mut Iter<'a, FullyQualifiedToken>) -> Result<Vec<Ex
     }
 
     if tokens_for_current_expression.len() > 0 {
-        match parse_expression(&mut tokens_for_current_expression.iter()) {
+        match parse_expression(
+            &mut tokens_for_current_expression.iter(),
+            previous_expressions,
+            local_params,
+        ) {
             Ok(exp) => arguments.push(exp),
             Err(error) => return Err(error),
         };
@@ -139,8 +155,39 @@ fn parse_params<'a>(tokens: &mut Iter<'a, FullyQualifiedToken>) -> Result<Vec<Ex
     Ok(arguments)
 }
 
+fn find_type(
+    variable_name: String,
+    previous_expressions: Vec<Expression>,
+    local_params: Vec<Param>,
+) -> Result<String, String> {
+    for param in local_params {
+        if param.name == variable_name {
+            return Ok(param.type_name);
+        }
+    }
+
+    for expression in previous_expressions {
+        match expression {
+            Expression::LocalAssign {
+                name,
+                type_name,
+                expression: _,
+            } => {
+                if name == variable_name {
+                    return Ok(type_name);
+                }
+            }
+            _ => (),
+        }
+    }
+
+    return Err(format!("Couldn't find type for variable {}", variable_name));
+}
+
 pub fn parse_expression<'a>(
     tokens: &mut Iter<'a, FullyQualifiedToken>,
+    previous_expressions: Vec<Expression>,
+    local_params: Vec<Param>,
 ) -> Result<Expression, String> {
     let has_addition = tokens.clone().any(|fqt| fqt.token == Token::Plus);
     let has_assign = tokens.clone().any(|fqt| fqt.token == Token::Assign);
@@ -156,8 +203,16 @@ pub fn parse_expression<'a>(
         let left_tokens = &mut sides[0].iter();
         let right_tokens = &mut sides[1].iter();
 
-        return match parse_expression(left_tokens) {
-            Ok(left) => match parse_expression(right_tokens) {
+        return match parse_expression(
+            left_tokens,
+            previous_expressions.clone(),
+            local_params.clone(),
+        ) {
+            Ok(left) => match parse_expression(
+                right_tokens,
+                previous_expressions.clone(),
+                local_params.clone(),
+            ) {
                 Ok(right) => Ok(Expression::Addition {
                     left: Box::new(left),
                     right: Box::new(right),
@@ -173,7 +228,7 @@ pub fn parse_expression<'a>(
             Some(fqt) => {
                 match &fqt.token {
                     Token::Return => {
-                        return parse_expression(tokens).map(|exp| Expression::Return {
+                        return parse_expression(tokens, previous_expressions, local_params).map(|exp| Expression::Return {
                             expression: Box::new(exp),
                         })
                     }
@@ -192,7 +247,7 @@ pub fn parse_expression<'a>(
                                             return Err(error);
                                         }
 
-                                        return parse_expression(tokens).map(|exp| Expression::LocalAssign {
+                                        return parse_expression(tokens, previous_expressions, local_params).map(|exp| Expression::LocalAssign {
                                             name: name.to_string(),
                                             type_name: type_name.to_string(),
                                             expression: Box::new(exp),
@@ -240,7 +295,7 @@ pub fn parse_expression<'a>(
                                             return Err(error);
                                         }
 
-                                        return parse_expression(tokens).map(|exp| Expression::GlobalAssign {
+                                        return parse_expression(tokens, previous_expressions, local_params).map(|exp| Expression::GlobalAssign {
                                             name: name.to_string(),
                                             type_name: type_name.to_string(),
                                             expression: Box::new(exp),
@@ -277,15 +332,19 @@ pub fn parse_expression<'a>(
                     Token::Identifier { body } => {
                         match tokens.next() {
                             Some(fqt) => match &fqt.token {
-                                Token::LeftParen => match parse_params(tokens) {
+                                Token::LeftParen => match parse_params(tokens, previous_expressions, local_params) {
                                     Ok(expressions) => return Ok(Expression::FunctionCall { name: body.to_string(), args: expressions.iter().map(|e| Box::new(e.clone())).collect::<Vec<Box<Expression>>>() }),
                                     Err(error) => return Err(error)
                                 },
                                 token => return error_with_info(format!("Unexpected token {}", token), fqt)
                             }
-                            None => return Ok(Expression::Variable {
-                                body: body.to_string(),
-                            })
+                            None => {
+                                return find_type(body.to_string(), previous_expressions, local_params).map(|type_name|
+                                    Expression::Variable {
+                                    body: body.to_string(),
+                                    type_name
+                                })
+                            }
                         }
                     }
                     Token::RightBracket => {},
@@ -298,7 +357,7 @@ pub fn parse_expression<'a>(
                             None => return Err(String::from("Couldn't find predicate tokens"))
                         };
 
-                        let predicate = match parse_expression(&mut predicate_tokens.iter()) {
+                        let predicate = match parse_expression(&mut predicate_tokens.iter(), previous_expressions.clone(), local_params.clone()) {
                             Err(error) => return Err(error),
                             Ok(v) => v,
                         };
@@ -308,7 +367,7 @@ pub fn parse_expression<'a>(
                             None => return Err(String::from("Couldn't find success tokens"))
                         };
 
-                        let success = match parse_expression(&mut success_tokens.iter()) {
+                        let success = match parse_expression(&mut success_tokens.iter(), previous_expressions.clone(), local_params.clone()) {
                             Err(error) => return Err(error),
                             Ok(v) => v,
                         };
@@ -318,7 +377,7 @@ pub fn parse_expression<'a>(
                             None => return Err(String::from("Couldn't find fail tokens"))
                         };
 
-                        let fail = match parse_expression(&mut fail_tokens.iter()) {
+                        let fail = match parse_expression(&mut fail_tokens.iter(), previous_expressions.clone(), local_params.clone()) {
                             Err(error) => return Err(error),
                             Ok(v) => v,
                         };

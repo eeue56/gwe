@@ -216,7 +216,11 @@ fn parse_function(tokens: Vec<FullyQualifiedToken>) -> Result<Function, String> 
         if expression_tokens.len() < 1 {
             continue;
         }
-        match parse_expression(&mut expression_tokens.iter()) {
+        match parse_expression(
+            &mut expression_tokens.iter(),
+            expressions.clone(),
+            params.clone(),
+        ) {
             Ok(exp) => expressions.push(exp),
             Err(error) => return Err(error),
         }

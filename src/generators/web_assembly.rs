@@ -166,7 +166,7 @@ fn generate_expression(expression: Expression) -> String {
         }
         Expression::Number { value } => format!("(f32.const {})", value),
         Expression::Return { expression } => generate_expression(*expression),
-        Expression::Variable { body } => format!("(local.get ${})", body),
+        Expression::Variable { body, type_name: _ } => format!("(local.get ${})", body),
         Expression::String { body } => format!("\"{}\"", body),
         Expression::FunctionCall { name, args } => {
             let params = args

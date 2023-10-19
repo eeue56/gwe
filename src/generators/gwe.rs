@@ -61,7 +61,7 @@ fn generate_expression(expression: Expression) -> String {
         Expression::Return { expression } => {
             format!("return {}", generate_expression(*expression))
         }
-        Expression::Variable { body } => body,
+        Expression::Variable { body, type_name: _ } => body,
         Expression::String { body } => format!("\"{}\"", body),
         Expression::FunctionCall { name, args } => {
             let params = args

@@ -79,7 +79,8 @@ mod tests {
                     name: String::from("say_hello"),
                     expressions: vec![Expression::Return {
                         expression: Box::new(Expression::Variable {
-                            body: String::from("name")
+                            body: String::from("name"),
+                            type_name: String::from("string")
                         })
                     }],
                     params: vec![Param {
@@ -110,12 +111,14 @@ fn say_hello(name: string): string {
                             name: String::from("x"),
                             type_name: String::from("string"),
                             expression: Box::new(Expression::Variable {
-                                body: String::from("name")
+                                body: String::from("name"),
+                                type_name: String::from("string")
                             })
                         },
                         Expression::Return {
                             expression: Box::new(Expression::Variable {
-                                body: String::from("name")
+                                body: String::from("name"),
+                                type_name: String::from("string")
                             })
                         }
                     ],
@@ -147,12 +150,14 @@ fn say_hello(name: string): string {
                             name: String::from("x"),
                             type_name: String::from("string"),
                             expression: Box::new(Expression::Variable {
-                                body: String::from("name")
+                                body: String::from("name"),
+                                type_name: String::from("string")
                             })
                         },
                         Expression::Return {
                             expression: Box::new(Expression::Variable {
-                                body: String::from("name")
+                                body: String::from("name"),
+                                type_name: String::from("string")
                             })
                         }
                     ],
@@ -188,13 +193,15 @@ fn say_hello(name: string): string {
                                     body: String::from("Hello ")
                                 }),
                                 right: Box::new(Expression::Variable {
-                                    body: String::from("name")
+                                    body: String::from("name"),
+                                    type_name: String::from("string")
                                 })
                             })
                         },
                         Expression::Return {
                             expression: Box::new(Expression::Variable {
-                                body: String::from("name")
+                                body: String::from("name"),
+                                type_name: String::from("string")
                             })
                         }
                     ],
@@ -236,7 +243,8 @@ fn say_hello(): void {
                         },
                         Expression::Return {
                             expression: Box::new(Expression::Variable {
-                                body: String::from("x")
+                                body: String::from("x"),
+                                type_name: String::from("number")
                             })
                         }
                     ],
