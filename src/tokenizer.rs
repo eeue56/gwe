@@ -33,6 +33,7 @@ pub enum Token {
     Else,
     True,
     False,
+    For,
 }
 
 #[derive(PartialEq, Debug, Clone)]
@@ -71,6 +72,7 @@ impl Display for Token {
                 Token::Else => "else",
                 Token::True => "true",
                 Token::False => "false",
+                Token::For => "for",
             }
         )
     }
@@ -114,12 +116,13 @@ fn possibly_push_current_buffer(
             "else" => Token::Else,
             "true" => Token::True,
             "false" => Token::False,
+            "for" => Token::For,
             x if is_number_string(x) => Token::Number { body: chars },
             _ => Token::Identifier { body: chars },
         };
 
         tokens.push(FullyQualifiedToken {
-            token: token,
+            token,
             info: TokenInfo {
                 line: line_number,
                 index: char_index,
@@ -354,6 +357,47 @@ pub fn tokenize(body: String) -> Vec<FullyQualifiedToken> {
     possibly_push_current_buffer(&mut tokens, &mut current_buffer, line_number, char_index);
 
     tokens
+}
+
+pub fn split_by_semicolon_within_brackets(
+    tokens: Vec<FullyQualifiedToken>,
+) -> Vec<Vec<FullyQualifiedToken>> {
+    let mut groups: Vec<Vec<FullyQualifiedToken>> = vec![];
+    let mut current_group: Vec<FullyQualifiedToken> = vec![];
+    let mut bracket_depth = 0;
+    for fqt in tokens {
+        if bracket_depth == 0 {
+            match fqt.token {
+                Token::LeftBracket => {
+                    bracket_depth += 1;
+                    current_group.push(fqt);
+                }
+                Token::Semicolon => {
+                    groups.push(current_group);
+                    current_group = vec![];
+                }
+                _ => {
+                    current_group.push(fqt);
+                }
+            }
+        } else {
+            match fqt.token {
+                Token::RightBracket => {
+                    bracket_depth -= 1;
+                    current_group.push(fqt);
+                }
+                _ => {
+                    current_group.push(fqt);
+                }
+            }
+        }
+    }
+
+    if current_group.len() > 0 {
+        groups.push(current_group);
+    }
+
+    return groups;
 }
 
 #[cfg(test)]

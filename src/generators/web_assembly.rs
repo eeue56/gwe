@@ -78,6 +78,25 @@ fn define_locals(expressions: Vec<Expression>) -> String {
                     Some((name, type_name))
                 }
             }
+            Expression::ForStatement {
+                initial_value,
+                incrementor: _,
+                break_condition: _,
+                body: _,
+            } => match *initial_value {
+                Expression::LocalAssign {
+                    name,
+                    type_name,
+                    expression: _,
+                } => {
+                    if type_name == String::from("string") {
+                        None
+                    } else {
+                        Some((name, type_name))
+                    }
+                }
+                _ => None,
+            },
             _ => None,
         })
         .map(|(name, type_name)| format!("(local ${} {})", name, type_name))
@@ -164,7 +183,7 @@ fn generate_expression(expression: Expression) -> String {
         } => {
             format!("(local.set ${} {})", name, generate_expression(*expression))
         }
-        Expression::Number { value } => format!("(f32.const {})", value),
+        Expression::Number { value, type_name } => format!("({}.const {})", type_name, value),
         Expression::Return { expression } => generate_expression(*expression),
         Expression::Variable { body, type_name: _ } => format!("(local.get ${})", body),
         Expression::String { body } => format!("\"{}\"", body),
@@ -205,6 +224,58 @@ fn generate_expression(expression: Expression) -> String {
             } else {
                 format!("(i32.const 1)")
             }
+        }
+        Expression::ForStatement {
+            initial_value,
+            break_condition,
+            incrementor,
+            body,
+        } => {
+            let body_expressions = body
+                .iter()
+                .map(|expression| generate_expression(*expression.clone()))
+                .collect::<Vec<String>>()
+                .join("\n");
+
+            let variable_name = match *initial_value.clone() {
+                Expression::LocalAssign {
+                    name,
+                    type_name: _,
+                    expression: _,
+                } => name,
+                _ => return String::from(""),
+            };
+
+            let type_name = match *initial_value.clone() {
+                Expression::LocalAssign {
+                    name: _,
+                    type_name,
+                    expression: _,
+                } => type_name,
+                _ => return String::from("i32"),
+            };
+
+            format!(
+                "{}
+(loop $loop
+{}
+  (local.get ${variable_name})
+  {incrementor}
+  ({type_name}.add)
+  (local.set ${variable_name})
+
+  (local.get ${variable_name})
+  {break_condition}
+  ({type_name}.lt_s)
+  (br_if $loop)
+)",
+                generate_expression(*initial_value),
+                indent(body_expressions),
+                incrementor = generate_expression(*incrementor),
+                variable_name = variable_name,
+                break_condition = generate_expression(*break_condition),
+                type_name = type_name
+            )
         }
     }
 }
@@ -678,6 +749,57 @@ export main main",
         (i32.const 1)
         (call $log)
       )
+    )
+  )
+  (export \"main\" (func $main))
+)",
+        );
+
+        match parse(input.clone()) {
+            Err(err) => panic!("{}", err),
+            Ok(program) => {
+                assert_eq!(
+                    generate(program.clone()),
+                    output,
+                    "Generated:\n{}\n\n\n========\nExpected:\n{}",
+                    generate(program.clone()),
+                    output
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn for_loop() {
+        let input = String::from(
+            "import fn log(number: i32) console.log
+
+fn main(): void {
+    for (local x: i32 = 0, 10, 1) {
+        log(x);
+    };
+}
+
+export main main",
+        );
+
+        let output = String::from(
+            "(module
+  (import \"console\" \"log\" (func $log (param i32)))
+  (func $main
+    (local $x i32)
+    (local.set $x (i32.const 0))
+    (loop $loop
+      (local.get $x)
+      (call $log)
+      (local.get $x)
+      (i32.const 1)
+      (i32.add)
+      (local.set $x)
+      (local.get $x)
+      (i32.const 10)
+      (i32.lt_s)
+      (br_if $loop)
     )
   )
   (export \"main\" (func $main))

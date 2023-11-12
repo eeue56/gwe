@@ -1,6 +1,6 @@
 use crate::{
     blocks::Param,
-    tokenizer::{error_with_info, FullyQualifiedToken, Token},
+    tokenizer::{error_with_info, split_by_semicolon_within_brackets, FullyQualifiedToken, Token},
 };
 use std::slice::Iter;
 
@@ -8,6 +8,7 @@ use std::slice::Iter;
 pub enum Expression {
     Number {
         value: String,
+        type_name: String,
     },
     Variable {
         body: String,
@@ -49,6 +50,18 @@ pub enum Expression {
     Boolean {
         value: bool,
     },
+    ForStatement {
+        initial_value: Box<Expression>,
+        incrementor: Box<Expression>,
+        break_condition: Box<Expression>,
+        body: Vec<Box<Expression>>,
+    },
+}
+
+impl Expression {
+    pub fn map<F: FnOnce(Expression) -> Expression>(self, f: F) -> Expression {
+        f(self)
+    }
 }
 
 fn try_to_match<'a>(tokens: &mut Iter<'a, FullyQualifiedToken>, token: Token) -> Option<String> {
@@ -76,12 +89,14 @@ fn between_next(
     let mut seen_start = false;
 
     for fqt in tokens {
-        if fqt.token == start {
+        if seen_start {
+            if fqt.token == end {
+                return Some(new_tokens);
+            } else {
+                new_tokens.push(fqt);
+            }
+        } else if fqt.token == start {
             seen_start = true;
-        } else if fqt.token == end {
-            return Some(new_tokens);
-        } else if seen_start {
-            new_tokens.push(fqt);
         }
     }
 
@@ -250,7 +265,10 @@ pub fn parse_expression<'a>(
                                         return parse_expression(tokens, previous_expressions, local_params).map(|exp| Expression::LocalAssign {
                                             name: name.to_string(),
                                             type_name: type_name.to_string(),
-                                            expression: Box::new(exp),
+                                            expression: Box::new(exp.map(|expression| match expression {
+                                                Expression::Number { value, type_name: _ } => Expression::Number { value: value, type_name: type_name.to_string() },
+                                                _ => expression
+                                            })),
                                         });
                                     }
 
@@ -349,7 +367,7 @@ pub fn parse_expression<'a>(
                     }
                     Token::RightBracket => {},
                     Token::Text { body } => return Ok(Expression::String { body: body.to_string() }),
-                    Token::Number { body } => return Ok(Expression::Number {value: body.to_string()}),
+                    Token::Number { body } => return Ok(Expression::Number { value: body.to_string(), type_name: String::from("f32") }),
                     Token::If => {
                         let tokens_clone = tokens.clone().map(|fqt| fqt.clone()).collect::<Vec<FullyQualifiedToken>>();
                         let predicate_tokens = match between_next(tokens_clone.clone(), Token::LeftParen, Token::RightParen) {
@@ -391,6 +409,74 @@ pub fn parse_expression<'a>(
                     }
                     Token::True => return Ok(Expression::Boolean { value: true }),
                     Token::False => return Ok(Expression::Boolean { value: false }),
+                    Token::For => {
+                        let tokens_clone = tokens.clone().map(|fqt| fqt.clone()).collect::<Vec<FullyQualifiedToken>>();
+
+                        let initializer_tokens = match between_next(tokens_clone.clone(), Token::LeftParen, Token::Comma) {
+                            Some(fqts) => fqts,
+                            None => return Err(String::from("Couldn't find initializer tokens"))
+                        };
+                        let initializer = match parse_expression(&mut initializer_tokens.iter(), previous_expressions.clone(), local_params.clone()) {
+                            Err(error) => return Err(error),
+                            Ok(v) => v,
+                        };
+
+                        let mut previous_expression_with_initializer = previous_expressions.clone();
+                        previous_expression_with_initializer.push(initializer.clone());
+
+                        let conditional_tokens = match between_next(tokens_clone.clone(), Token::Comma, Token::Comma) {
+                            Some(fqts) => fqts,
+                            None => return Err(String::from("Couldn't find conditional tokens"))
+                        };
+                        let conditional = match parse_expression(&mut conditional_tokens.iter(), previous_expression_with_initializer.clone(), local_params.clone()) {
+                            Err(error) => return Err(error),
+                            Ok(v) => v,
+                        }.map(|expression| match expression {
+                            Expression::Number { value, type_name: _ } => Expression::Number { value, type_name: String::from("i32") },
+                            _ => expression
+                        });
+
+                        let incrementor_tokens = match between_next_next(tokens_clone.clone(), Token::Comma, Token::RightParen) {
+                            Some(fqts) => fqts,
+                            None => return Err(String::from("Couldn't find incrementor tokens"))
+                        };
+                        let incrementor = match parse_expression(&mut incrementor_tokens.iter(), previous_expression_with_initializer.clone(), local_params.clone()) {
+                            Err(error) => return Err(error),
+                            Ok(v) => v,
+                        }.map(|expression| match expression {
+                            Expression::Number { value, type_name: _ } => Expression::Number { value, type_name: String::from("i32") },
+                            _ => expression
+                        });
+
+                        let body_tokens = match between_next(tokens_clone.clone(), Token::LeftBracket, Token::RightBracket) {
+                            Some(fqts) => fqts,
+                            None => return Err(String::from("Couldn't find body tokens"))
+                        };
+                        let mut body: Vec<Box<Expression>> = vec![];
+                        let tokens_split_by_semicolon: Vec<Vec<FullyQualifiedToken>> =
+                            split_by_semicolon_within_brackets(body_tokens);
+
+                        for expression_tokens in tokens_split_by_semicolon.iter() {
+                            if expression_tokens.len() < 1 {
+                                continue;
+                            }
+                            match parse_expression(
+                                &mut expression_tokens.iter(),
+                                previous_expression_with_initializer.clone(),
+                                local_params.clone(),
+                            ) {
+                                Ok(exp) => body.push(Box::new(exp)),
+                                Err(error) => return Err(error),
+                            }
+                        }
+
+                        return Ok(Expression::ForStatement{
+                            initial_value: Box::new(initializer),
+                            incrementor: Box::new(incrementor),
+                            break_condition: Box::new(conditional),
+                            body: body
+                        })
+                    }
                     value => {
                         return error_with_info(format!(
                             "Failed parsing expression, got unexpected token {}",

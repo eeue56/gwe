@@ -1,8 +1,10 @@
-use std::slice::Iter;
+use std::{slice::Iter, vec};
 
 use crate::{
     expressions::{parse_expression, Expression},
-    tokenizer::{error_with_info, tokenize, FullyQualifiedToken, Token},
+    tokenizer::{
+        error_with_info, split_by_semicolon_within_brackets, tokenize, FullyQualifiedToken, Token,
+    },
 };
 
 #[derive(PartialEq, Debug, Clone)]
@@ -205,12 +207,8 @@ fn parse_function(tokens: Vec<FullyQualifiedToken>) -> Result<Function, String> 
     // cut off }
     original_tokens.truncate(original_tokens.len() - 1);
 
-    let tokens_split_by_semicolon: Vec<&[FullyQualifiedToken]> = original_tokens
-        .split(|fqt| match fqt.token {
-            Token::Semicolon => true,
-            _ => false,
-        })
-        .collect::<Vec<&[FullyQualifiedToken]>>();
+    let tokens_split_by_semicolon: Vec<Vec<FullyQualifiedToken>> =
+        split_by_semicolon_within_brackets(original_tokens);
 
     for expression_tokens in tokens_split_by_semicolon.iter() {
         if expression_tokens.len() < 1 {

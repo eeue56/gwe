@@ -1,0 +1,9 @@
+import fn log(number: i32) console.log
+
+fn main(): void {
+    for (local x: i32 = 0, 10, 1) {
+        log(x);
+    };
+}
+
+export main main

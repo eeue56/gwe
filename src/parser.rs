@@ -234,10 +234,12 @@ fn say_hello(): void {
                             type_name: String::from("number"),
                             expression: Box::new(Expression::Addition {
                                 left: Box::new(Expression::Number {
-                                    value: String::from("123")
+                                    value: String::from("123"),
+                                    type_name: String::from("f32"),
                                 }),
                                 right: Box::new(Expression::Number {
-                                    value: String::from("3.14")
+                                    value: String::from("3.14"),
+                                    type_name: String::from("f32"),
                                 })
                             })
                         },

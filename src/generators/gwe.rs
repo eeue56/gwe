@@ -57,7 +57,10 @@ fn generate_expression(expression: Expression) -> String {
                 generate_expression(*expression)
             )
         }
-        Expression::Number { value } => value,
+        Expression::Number {
+            value,
+            type_name: _,
+        } => value,
         Expression::Return { expression } => {
             format!("return {}", generate_expression(*expression))
         }
@@ -89,6 +92,27 @@ fn generate_expression(expression: Expression) -> String {
             )
         }
         Expression::Boolean { value } => format!("{}", value),
+        Expression::ForStatement {
+            initial_value,
+            break_condition,
+            incrementor,
+            body,
+        } => {
+            let body_expressions = body
+                .iter()
+                .map(|expression| format!("{};", generate_expression(*expression.clone())))
+                .collect::<Vec<String>>()
+                .join("\n");
+            format!(
+                "for ({}, {}, {}) {{
+{}
+}}",
+                generate_expression(*initial_value),
+                generate_expression(*break_condition),
+                generate_expression(*incrementor),
+                indent(body_expressions)
+            )
+        }
     }
 }
 
@@ -359,6 +383,29 @@ export main main",
 
 fn main(): void {
     if (true) { log(true) } { log(false) };
+}
+
+export main main",
+        );
+
+        match parse(input.clone()) {
+            Err(err) => panic!("{}", err),
+            Ok(program) => {
+                assert_eq!(generate(program), input);
+                ()
+            }
+        }
+    }
+
+    #[test]
+    fn for_loop() {
+        let input = String::from(
+            "import fn log(number: i32) console.log
+
+fn main(): void {
+    for (local x: i32 = 0, 10, 1) {
+        log(x);
+    };
 }
 
 export main main",
