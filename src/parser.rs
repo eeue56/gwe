@@ -8,7 +8,7 @@ pub struct Program {
 pub fn parse(body: String) -> Result<Program, String> {
     let unparsed_blocks = into_blocks(body);
 
-    if unparsed_blocks.len() == 0 {
+    if unparsed_blocks.is_empty() {
         return Ok(Program { blocks: vec![] });
     }
 
@@ -24,10 +24,10 @@ pub fn parse(body: String) -> Result<Program, String> {
         }
     }
 
-    if errors.len() > 0 {
-        Err(errors.join("\n"))
-    } else {
+    if errors.is_empty() {
         Ok(Program { blocks })
+    } else {
+        Err(errors.join("\n"))
     }
 }
 
@@ -55,7 +55,7 @@ mod tests {
         assert_eq!(
             parse(String::from("fn say_hello(name: string): void {}")),
             Ok(Program {
-                blocks: vec![Block::FunctionBlock(Function {
+                blocks: vec![Block::Function(Function {
                     name: String::from("say_hello"),
                     expressions: vec![],
                     params: vec![Param {
@@ -75,7 +75,7 @@ mod tests {
                 "fn say_hello(name: string): string { return name; }"
             )),
             Ok(Program {
-                blocks: vec![Block::FunctionBlock(Function {
+                blocks: vec![Block::Function(Function {
                     name: String::from("say_hello"),
                     expressions: vec![Expression::Return {
                         expression: Box::new(Expression::Variable {
@@ -104,7 +104,7 @@ fn say_hello(name: string): string {
 }"
             )),
             Ok(Program {
-                blocks: vec![Block::FunctionBlock(Function {
+                blocks: vec![Block::Function(Function {
                     name: String::from("say_hello"),
                     expressions: vec![
                         Expression::LocalAssign {
@@ -143,7 +143,7 @@ fn say_hello(name: string): string {
 }"
             )),
             Ok(Program {
-                blocks: vec![Block::FunctionBlock(Function {
+                blocks: vec![Block::Function(Function {
                     name: String::from("say_hello"),
                     expressions: vec![
                         Expression::GlobalAssign {
@@ -182,7 +182,7 @@ fn say_hello(name: string): string {
 }"
             )),
             Ok(Program {
-                blocks: vec![Block::FunctionBlock(Function {
+                blocks: vec![Block::Function(Function {
                     name: String::from("say_hello"),
                     expressions: vec![
                         Expression::LocalAssign {
@@ -226,7 +226,7 @@ fn say_hello(): void {
 }"
             )),
             Ok(Program {
-                blocks: vec![Block::FunctionBlock(Function {
+                blocks: vec![Block::Function(Function {
                     name: String::from("say_hello"),
                     expressions: vec![
                         Expression::LocalAssign {

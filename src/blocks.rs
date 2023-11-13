@@ -42,18 +42,18 @@ pub struct ImportMemory {
 
 #[derive(PartialEq, Debug, Clone)]
 pub enum Block {
-    FunctionBlock(Function),
-    ExportBlock(Export),
-    ImportFunctionBlock(ImportFunction),
-    ImportMemoryBlock(ImportMemory),
+    Function(Function),
+    Export(Export),
+    ImportFunction(ImportFunction),
+    ImportMemory(ImportMemory),
 }
 
 pub fn into_blocks(body: String) -> Vec<String> {
     let mut current_block: Vec<String> = Vec::new();
     let mut blocks: Vec<Vec<String>> = vec![];
 
-    for line in body.split("\n") {
-        if line.trim().len() > 0 {
+    for line in body.split('\n') {
+        if !line.trim().is_empty() {
             current_block.push(line.to_string());
             if line.starts_with("export") || line.starts_with("import") || line == "}" {
                 blocks.push(current_block.clone());
@@ -62,15 +62,15 @@ pub fn into_blocks(body: String) -> Vec<String> {
         }
     }
 
-    if current_block.len() > 0 {
+    if !current_block.is_empty() {
         blocks.push(current_block.clone());
     }
 
     blocks.iter().map(|b| b.join("\n")).collect::<Vec<String>>()
 }
 
-fn parse_params<'a>(
-    tokens: &mut Iter<'a, FullyQualifiedToken>,
+fn parse_params(
+    tokens: &mut Iter<'_, FullyQualifiedToken>,
     entry_fqt: FullyQualifiedToken,
 ) -> Result<Vec<Param>, String> {
     let param_name: &mut Option<String> = &mut None;
@@ -88,16 +88,13 @@ fn parse_params<'a>(
                     });
 
                     param_name.take();
-                    ()
                 }
                 None => {
                     param_name.replace(body.to_string());
-                    ()
                 }
             },
             Some(Token::Comma) => {
                 param_name.take();
-                ()
             }
             Some(Token::Colon) => (),
             Some(value) => {
@@ -151,7 +148,7 @@ fn parse_function(tokens: Vec<FullyQualifiedToken>) -> Result<Function, String> 
                 open_parens.unwrap(),
             )
         }
-        None => return Err(format!("Expected parens but got nothing")),
+        None => return Err("Expected parens but got nothing".to_string()),
     }
 
     let params = match parse_params(&mut tokens, open_parens.unwrap().clone()) {
@@ -185,7 +182,7 @@ fn parse_function(tokens: Vec<FullyQualifiedToken>) -> Result<Function, String> 
                 )
             }
         },
-        None => return Err(format!("Expected return type name, but got nothing")),
+        None => return Err(String::from("Expected return type name, but got nothing")),
     };
 
     // {
@@ -194,7 +191,7 @@ fn parse_function(tokens: Vec<FullyQualifiedToken>) -> Result<Function, String> 
             Token::LeftBracket => (),
             token => return error_with_info(format!("Expected {{ but got {}", token), fqt),
         },
-        None => return Err(format!("Expected {{ but got nothing")),
+        None => return Err(String::from("Expected { but got nothing")),
     }
 
     let mut expressions: Vec<Expression> = vec![];
@@ -211,7 +208,7 @@ fn parse_function(tokens: Vec<FullyQualifiedToken>) -> Result<Function, String> 
         split_by_semicolon_within_brackets(original_tokens);
 
     for expression_tokens in tokens_split_by_semicolon.iter() {
-        if expression_tokens.len() < 1 {
+        if expression_tokens.is_empty() {
             continue;
         }
         match parse_expression(
@@ -226,7 +223,7 @@ fn parse_function(tokens: Vec<FullyQualifiedToken>) -> Result<Function, String> 
 
     Ok(Function {
         name: function_name.to_string(),
-        expressions: expressions,
+        expressions,
         params,
         return_type,
     })
@@ -299,7 +296,7 @@ fn parse_import_function(tokens: Vec<FullyQualifiedToken>) -> Result<ImportFunct
                 open_parens.unwrap(),
             )
         }
-        None => return Err(format!("Expected parens but got nothing")),
+        None => return Err("Expected parens but got nothing".to_string()),
     }
 
     let params = match parse_params(&mut tokens, open_parens.unwrap().clone()) {
@@ -379,11 +376,11 @@ pub fn parse_block(body: String) -> Result<Block, String> {
     let tokens = tokenize(body);
 
     match tokens.first().map(|fqt| &fqt.token) {
-        Some(Token::Fn) => parse_function(tokens).map(|f| Block::FunctionBlock(f)),
-        Some(Token::Export) => parse_export(tokens).map(|e| Block::ExportBlock(e)),
+        Some(Token::Fn) => parse_function(tokens).map(Block::Function),
+        Some(Token::Export) => parse_export(tokens).map(Block::Export),
         Some(Token::Import) => match tokens.get(1).map(|fqt| &fqt.token) {
-            Some(Token::Fn) => parse_import_function(tokens).map(|i| Block::ImportFunctionBlock(i)),
-            Some(Token::Memory) => parse_import_memory(tokens).map(|i| Block::ImportMemoryBlock(i)),
+            Some(Token::Fn) => parse_import_function(tokens).map(Block::ImportFunction),
+            Some(Token::Memory) => parse_import_memory(tokens).map(Block::ImportMemory),
             _ => Err(String::from("Unexpected token in import statement")),
         },
         _ => Err(String::from("Unrecoginzed block")),
@@ -399,7 +396,7 @@ mod tests {
     fn export_block() {
         assert_eq!(
             parse_block(String::from("export sayHello say_hello")),
-            Ok(Block::ExportBlock(Export {
+            Ok(Block::Export(Export {
                 external_name: String::from("sayHello"),
                 function_name: String::from("say_hello")
             }))

@@ -47,9 +47,9 @@ mod cli {
 
         match Command::new("wat2wasm")
             .args([
-                &path_as_string.as_str(),
+                path_as_string.as_str(),
                 "-o",
-                &output_path_as_string.as_str(),
+                output_path_as_string.as_str(),
             ])
             .output()
         {
@@ -87,10 +87,7 @@ mod cli {
                 let _ = fs::create_dir_all(path.as_path().parent().unwrap());
 
                 match fs::write(path.clone(), code) {
-                    Ok(_) => println!(
-                        "File written to {}",
-                        path.as_os_str().to_string_lossy().to_string()
-                    ),
+                    Ok(_) => println!("File written to {}", path.as_os_str().to_string_lossy()),
                     Err(error) => println!("Error writing file due to {}", error),
                 }
             }
@@ -120,7 +117,7 @@ mod cli {
                                 target: String::from("wat"),
                                 ..args.clone()
                             });
-                            compile_to_wasm(&args);
+                            compile_to_wasm(args);
                             Ok(String::from(""))
                         }
                         "gwe" => {
@@ -150,12 +147,11 @@ mod cli {
 
     fn compile_or_write(args: &Args) {
         if args.stdout {
-            match compile_file(&args) {
-                Ok(code) => println!("{}", code),
-                Err(_) => (),
+            if let Ok(code) = compile_file(args) {
+                println!("{}", code)
             };
         } else {
-            write_file(&args);
+            write_file(args);
         }
     }
 
@@ -176,25 +172,20 @@ mod cli {
 
             let cwd = current_dir().unwrap().to_string_lossy().to_string();
 
-            for e in rx {
-                match e {
-                    Ok(events) => {
-                        for event in events {
-                            let path: String = event
-                                .path
-                                .to_string_lossy()
-                                .to_string()
-                                .chars()
-                                .skip(cwd.len() + 1)
-                                .collect();
+            for events in rx.into_iter().flatten() {
+                for event in events {
+                    let path: String = event
+                        .path
+                        .to_string_lossy()
+                        .to_string()
+                        .chars()
+                        .skip(cwd.len() + 1)
+                        .collect();
 
-                            compile_or_write(&Args {
-                                file: format!("{}", path),
-                                ..args.clone()
-                            })
-                        }
-                    }
-                    Err(_) => (),
+                    compile_or_write(&Args {
+                        file: path.to_string(),
+                        ..args.clone()
+                    })
                 }
             }
         } else {

@@ -4,9 +4,9 @@ use crate::{
 };
 
 pub fn indent(body: String) -> String {
-    body.split("\n")
+    body.split('\n')
         .map(|line| {
-            if line.len() == 0 {
+            if line.is_empty() {
                 String::from("")
             } else {
                 format!("    {}\n", line)
@@ -69,7 +69,7 @@ fn generate_expression(expression: Expression) -> String {
         Expression::FunctionCall { name, args } => {
             let params = args
                 .iter()
-                .map(|e| generate_expression(*e.clone()))
+                .map(|e| generate_expression(e.clone()))
                 .collect::<Vec<String>>()
                 .join(", ");
 
@@ -100,7 +100,7 @@ fn generate_expression(expression: Expression) -> String {
         } => {
             let body_expressions = body
                 .iter()
-                .map(|expression| format!("{};", generate_expression(*expression.clone())))
+                .map(|expression| format!("{};", generate_expression(expression.clone())))
                 .collect::<Vec<String>>()
                 .join("\n");
             format!(
@@ -118,7 +118,7 @@ fn generate_expression(expression: Expression) -> String {
 
 fn generate_function(function: Function) -> String {
     let params: Vec<String> = function.params.into_iter().map(generate_param).collect();
-    if function.expressions.len() == 0 {
+    if function.expressions.is_empty() {
         format!(
             "fn {}({}): {} {{\n}}",
             function.name,
@@ -168,10 +168,10 @@ fn generate_import_memory(import: ImportMemory) -> String {
 
 fn generate_block(block: Block) -> String {
     match block {
-        Block::FunctionBlock(function) => generate_function(function),
-        Block::ExportBlock(export) => generate_export(export),
-        Block::ImportFunctionBlock(import) => generate_import_function(import),
-        Block::ImportMemoryBlock(import) => generate_import_memory(import),
+        Block::Function(function) => generate_function(function),
+        Block::Export(export) => generate_export(export),
+        Block::ImportFunction(import) => generate_import_function(import),
+        Block::ImportMemory(import) => generate_import_memory(import),
     }
 }
 
@@ -192,7 +192,6 @@ mod tests {
             Err(err) => panic!("{}", err),
             Ok(program) => {
                 assert_eq!(generate(program), input);
-                ()
             }
         }
     }
@@ -208,7 +207,6 @@ mod tests {
             Err(err) => panic!("{}", err),
             Ok(program) => {
                 assert_eq!(generate(program), input);
-                ()
             }
         }
     }
@@ -224,7 +222,6 @@ mod tests {
             Err(err) => panic!("{}", err),
             Ok(program) => {
                 assert_eq!(generate(program), input);
-                ()
             }
         }
     }
@@ -241,7 +238,6 @@ mod tests {
             Err(err) => panic!("{}", err),
             Ok(program) => {
                 assert_eq!(generate(program), input);
-                ()
             }
         }
     }
@@ -259,7 +255,6 @@ mod tests {
             Err(err) => panic!("{}", err),
             Ok(program) => {
                 assert_eq!(generate(program), input);
-                ()
             }
         }
     }
@@ -276,7 +271,6 @@ mod tests {
             Err(err) => panic!("{}", err),
             Ok(program) => {
                 assert_eq!(generate(program), input);
-                ()
             }
         }
     }
@@ -295,7 +289,6 @@ export helloWorld hello_world",
             Err(err) => panic!("{}", err),
             Ok(program) => {
                 assert_eq!(generate(program), input);
-                ()
             }
         }
     }
@@ -308,7 +301,6 @@ export helloWorld hello_world",
             Err(err) => panic!("{}", err),
             Ok(program) => {
                 assert_eq!(generate(program), input);
-                ()
             }
         }
     }
@@ -329,7 +321,6 @@ export main main",
             Err(err) => panic!("{}", err),
             Ok(program) => {
                 assert_eq!(generate(program), input);
-                ()
             }
         }
     }
@@ -350,7 +341,6 @@ export main main",
             Err(err) => panic!("{}", err),
             Ok(program) => {
                 assert_eq!(generate(program), input);
-                ()
             }
         }
     }
@@ -371,7 +361,6 @@ export main main",
             Err(err) => panic!("{}", err),
             Ok(program) => {
                 assert_eq!(generate(program), input);
-                ()
             }
         }
     }
@@ -392,7 +381,6 @@ export main main",
             Err(err) => panic!("{}", err),
             Ok(program) => {
                 assert_eq!(generate(program), input);
-                ()
             }
         }
     }
@@ -415,7 +403,6 @@ export main main",
             Err(err) => panic!("{}", err),
             Ok(program) => {
                 assert_eq!(generate(program), input);
-                ()
             }
         }
     }

@@ -101,8 +101,8 @@ fn possibly_push_current_buffer(
     line_number: i32,
     char_index: i32,
 ) {
-    if current_buffer.len() > 0 {
-        let chars: String = current_buffer.as_slice().into_iter().collect();
+    if !current_buffer.is_empty() {
+        let chars: String = current_buffer.as_slice().iter().collect();
 
         let token = match chars.as_ref() {
             "fn" => Token::Fn,
@@ -141,7 +141,7 @@ fn push_text(
 ) {
     tokens.push(FullyQualifiedToken {
         token: Token::Text {
-            body: current_buffer.as_slice().into_iter().collect(),
+            body: current_buffer.as_slice().iter().collect(),
         },
         info: TokenInfo {
             line: line_number,
@@ -322,7 +322,7 @@ pub fn tokenize(body: String) -> Vec<FullyQualifiedToken> {
             '.' if is_number_string(
                 current_buffer
                     .as_slice()
-                    .into_iter()
+                    .iter()
                     .collect::<String>()
                     .as_str(),
             ) =>
@@ -393,11 +393,11 @@ pub fn split_by_semicolon_within_brackets(
         }
     }
 
-    if current_group.len() > 0 {
+    if !current_group.is_empty() {
         groups.push(current_group);
     }
 
-    return groups;
+    groups
 }
 
 #[cfg(test)]

@@ -6,9 +6,9 @@ use crate::{
 };
 
 pub fn indent(body: String) -> String {
-    body.split("\n")
+    body.split('\n')
         .map(|line| {
-            if line.len() == 0 {
+            if line.is_empty() {
                 String::from("")
             } else {
                 format!("  {}\n", line)
@@ -29,9 +29,9 @@ pub fn generate(program: crate::parser::Program) -> String {
         .clone()
         .iter()
         .filter_map(|block| match block {
-            Block::FunctionBlock(function) => match define_globals(function.expressions.clone()) {
-                str if str.len() == 0 => None,
-                str if str.len() > 0 => Some(str),
+            Block::Function(function) => match define_globals(function.expressions.clone()) {
+                str if str.is_empty() => None,
+                str if !str.is_empty() => Some(str),
                 _ => None,
             },
             _ => None,
@@ -72,7 +72,7 @@ fn define_locals(expressions: Vec<Expression>) -> String {
                 type_name,
                 expression: _,
             } => {
-                if type_name == String::from("string") {
+                if type_name == *"string" {
                     None
                 } else {
                     Some((name, type_name))
@@ -89,7 +89,7 @@ fn define_locals(expressions: Vec<Expression>) -> String {
                     type_name,
                     expression: _,
                 } => {
-                    if type_name == String::from("string") {
+                    if type_name == *"string" {
                         None
                     } else {
                         Some((name, type_name))
@@ -143,7 +143,7 @@ fn extract_strings(expressions: Vec<Expression>) -> (Option<String>, Vec<Express
         })
         .collect::<Vec<Expression>>();
 
-    let output = if strings.len() == 0 {
+    let output = if strings.is_empty() {
         None
     } else {
         let datas: String = strings
@@ -190,7 +190,7 @@ fn generate_expression(expression: Expression) -> String {
         Expression::FunctionCall { name, args } => {
             let params = args
                 .iter()
-                .map(|e| generate_expression(*e.clone()))
+                .map(|e| generate_expression(e.clone()))
                 .collect::<Vec<String>>()
                 .join("\n");
             format!("{}\n(call ${})", params, name)
@@ -220,9 +220,9 @@ fn generate_expression(expression: Expression) -> String {
         }
         Expression::Boolean { value } => {
             if value {
-                format!("(i32.const 0)")
+                "(i32.const 0)".to_string()
             } else {
-                format!("(i32.const 1)")
+                "(i32.const 1)".to_string()
             }
         }
         Expression::ForStatement {
@@ -233,7 +233,7 @@ fn generate_expression(expression: Expression) -> String {
         } => {
             let body_expressions = body
                 .iter()
-                .map(|expression| generate_expression(*expression.clone()))
+                .map(|expression| generate_expression(expression.clone()))
                 .collect::<Vec<String>>()
                 .join("\n");
 
@@ -281,7 +281,7 @@ fn generate_expression(expression: Expression) -> String {
 }
 
 fn generate_function(function: Function) -> String {
-    let params: String = if function.params.len() == 0 {
+    let params: String = if function.params.is_empty() {
         String::from("")
     } else {
         String::from(" ")
@@ -294,7 +294,7 @@ fn generate_function(function: Function) -> String {
                 .join(" ")
     };
 
-    let return_value: String = if function.return_type == String::from("void") {
+    let return_value: String = if function.return_type == *"void" {
         String::from("")
     } else {
         format!(" (result {})", function.return_type)
@@ -311,7 +311,7 @@ fn generate_function(function: Function) -> String {
         .collect::<Vec<String>>()
         .join("");
 
-    let definitions = if locals.len() == 0 {
+    let definitions = if locals.is_empty() {
         indent(expressions)
     } else {
         indent(format!("{}\n{}", locals, expressions))
@@ -368,10 +368,10 @@ fn generate_import_memory(import: ImportMemory) -> String {
 
 fn generate_block(block: Block) -> String {
     match block {
-        Block::FunctionBlock(function) => generate_function(function),
-        Block::ExportBlock(export) => generate_export(export),
-        Block::ImportFunctionBlock(import) => generate_import_function(import),
-        Block::ImportMemoryBlock(import) => generate_import_memory(import),
+        Block::Function(function) => generate_function(function),
+        Block::Export(export) => generate_export(export),
+        Block::ImportFunction(import) => generate_import_function(import),
+        Block::ImportMemory(import) => generate_import_memory(import),
     }
 }
 
@@ -399,7 +399,6 @@ mod tests {
             Err(err) => panic!("{}", err),
             Ok(program) => {
                 assert_eq!(generate(program), output);
-                ()
             }
         }
     }
@@ -422,7 +421,6 @@ mod tests {
             Err(err) => panic!("{}", err),
             Ok(program) => {
                 assert_eq!(generate(program), output);
-                ()
             }
         }
     }
@@ -444,7 +442,6 @@ mod tests {
             Err(err) => panic!("{}", err),
             Ok(program) => {
                 assert_eq!(generate(program), output);
-                ()
             }
         }
     }
@@ -468,7 +465,6 @@ mod tests {
             Err(err) => panic!("{}", err),
             Ok(program) => {
                 assert_eq!(generate(program), output);
-                ()
             }
         }
     }
@@ -495,7 +491,6 @@ mod tests {
             Err(err) => panic!("{}", err),
             Ok(program) => {
                 assert_eq!(generate(program), output);
-                ()
             }
         }
     }
@@ -520,7 +515,6 @@ mod tests {
             Err(err) => panic!("{}", err),
             Ok(program) => {
                 assert_eq!(generate(program), output);
-                ()
             }
         }
     }
@@ -547,7 +541,6 @@ export helloWorld hello_world",
             Err(err) => panic!("{}", err),
             Ok(program) => {
                 assert_eq!(generate(program), output);
-                ()
             }
         }
     }
@@ -565,7 +558,6 @@ export helloWorld hello_world",
             Err(err) => panic!("{}", err),
             Ok(program) => {
                 assert_eq!(generate(program), output);
-                ()
             }
         }
     }
@@ -596,7 +588,6 @@ export main main",
             Err(err) => panic!("{}", err),
             Ok(program) => {
                 assert_eq!(generate(program), output);
-                ()
             }
         }
     }

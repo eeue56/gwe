@@ -36,7 +36,7 @@ pub enum Expression {
     },
     FunctionCall {
         name: String,
-        args: Vec<Box<Expression>>,
+        args: Vec<Expression>,
     },
     MemoryReference {
         offset: i32,
@@ -54,7 +54,7 @@ pub enum Expression {
         initial_value: Box<Expression>,
         incrementor: Box<Expression>,
         break_condition: Box<Expression>,
-        body: Vec<Box<Expression>>,
+        body: Vec<Expression>,
     },
 }
 
@@ -64,10 +64,10 @@ impl Expression {
     }
 }
 
-fn try_to_match<'a>(tokens: &mut Iter<'a, FullyQualifiedToken>, token: Token) -> Option<String> {
+fn try_to_match(tokens: &mut Iter<'_, FullyQualifiedToken>, token: Token) -> Option<String> {
     match tokens.next() {
         Some(fqt) => {
-            if &token != &fqt.token {
+            if token != fqt.token {
                 Some(
                     error_with_info::<()>(format!("Expected : but got {}", &fqt.token), fqt)
                         .unwrap_err(),
@@ -124,8 +124,8 @@ fn between_next_next(
     None
 }
 
-fn parse_params<'a>(
-    tokens: &mut Iter<'a, FullyQualifiedToken>,
+fn parse_params(
+    tokens: &mut Iter<'_, FullyQualifiedToken>,
     previous_expressions: Vec<Expression>,
     local_params: Vec<Param>,
 ) -> Result<Vec<Expression>, String> {
@@ -156,7 +156,7 @@ fn parse_params<'a>(
         }
     }
 
-    if tokens_for_current_expression.len() > 0 {
+    if !tokens_for_current_expression.is_empty() {
         match parse_expression(
             &mut tokens_for_current_expression.iter(),
             previous_expressions,
@@ -182,25 +182,23 @@ fn find_type(
     }
 
     for expression in previous_expressions {
-        match expression {
-            Expression::LocalAssign {
-                name,
-                type_name,
-                expression: _,
-            } => {
-                if name == variable_name {
-                    return Ok(type_name);
-                }
+        if let Expression::LocalAssign {
+            name,
+            type_name,
+            expression: _,
+        } = expression
+        {
+            if name == variable_name {
+                return Ok(type_name);
             }
-            _ => (),
         }
     }
 
-    return Err(format!("Couldn't find type for variable {}", variable_name));
+    Err(format!("Couldn't find type for variable {}", variable_name))
 }
 
-pub fn parse_expression<'a>(
-    tokens: &mut Iter<'a, FullyQualifiedToken>,
+pub fn parse_expression(
+    tokens: &mut Iter<'_, FullyQualifiedToken>,
     previous_expressions: Vec<Expression>,
     local_params: Vec<Param>,
 ) -> Result<Expression, String> {
@@ -266,7 +264,7 @@ pub fn parse_expression<'a>(
                                             name: name.to_string(),
                                             type_name: type_name.to_string(),
                                             expression: Box::new(exp.map(|expression| match expression {
-                                                Expression::Number { value, type_name: _ } => Expression::Number { value: value, type_name: type_name.to_string() },
+                                                Expression::Number { value, type_name: _ } => Expression::Number { value, type_name: type_name.to_string() },
                                                 _ => expression
                                             })),
                                         });
@@ -280,7 +278,7 @@ pub fn parse_expression<'a>(
                                     }
                                 }
                                 None => {
-                                    return Err(format!(
+                                    return Err(String::from(
                                         "Failed parsing expression, was expecting an identifier token for the type name",
                                     ))
                                 }
@@ -293,7 +291,7 @@ pub fn parse_expression<'a>(
                             ))
                         }
                         None => {
-                            return Err(format!(
+                            return Err(String::from(
                                 "Failed parsing expression, was expecting an identifier token for the variable name",
                             ))
                         }
@@ -327,7 +325,7 @@ pub fn parse_expression<'a>(
                                         ))
                                     }
                                     None => {
-                                        return Err(format!(
+                                        return Err(String::from(
                                             "Failed parsing expression, was expecting an identifier token for the type name",
                                         ))
                                     }
@@ -342,7 +340,7 @@ pub fn parse_expression<'a>(
 
                         }
                         None => {
-                            return Err(format!(
+                            return Err(String::from(
                                 "Failed parsing expression, was expecting an identifier token for the variable name",
                             ))
                         }
@@ -351,7 +349,7 @@ pub fn parse_expression<'a>(
                         match tokens.next() {
                             Some(fqt) => match &fqt.token {
                                 Token::LeftParen => match parse_params(tokens, previous_expressions, local_params) {
-                                    Ok(expressions) => return Ok(Expression::FunctionCall { name: body.to_string(), args: expressions.iter().map(|e| Box::new(e.clone())).collect::<Vec<Box<Expression>>>() }),
+                                    Ok(expressions) => return Ok(Expression::FunctionCall { name: body.to_string(), args: expressions.to_vec() }),
                                     Err(error) => return Err(error)
                                 },
                                 token => return error_with_info(format!("Unexpected token {}", token), fqt)
@@ -369,7 +367,7 @@ pub fn parse_expression<'a>(
                     Token::Text { body } => return Ok(Expression::String { body: body.to_string() }),
                     Token::Number { body } => return Ok(Expression::Number { value: body.to_string(), type_name: String::from("f32") }),
                     Token::If => {
-                        let tokens_clone = tokens.clone().map(|fqt| fqt.clone()).collect::<Vec<FullyQualifiedToken>>();
+                        let tokens_clone = tokens.cloned().collect::<Vec<FullyQualifiedToken>>();
                         let predicate_tokens = match between_next(tokens_clone.clone(), Token::LeftParen, Token::RightParen) {
                             Some(fqts) => fqts,
                             None => return Err(String::from("Couldn't find predicate tokens"))
@@ -410,7 +408,7 @@ pub fn parse_expression<'a>(
                     Token::True => return Ok(Expression::Boolean { value: true }),
                     Token::False => return Ok(Expression::Boolean { value: false }),
                     Token::For => {
-                        let tokens_clone = tokens.clone().map(|fqt| fqt.clone()).collect::<Vec<FullyQualifiedToken>>();
+                        let tokens_clone = tokens.cloned().collect::<Vec<FullyQualifiedToken>>();
 
                         let initializer_tokens = match between_next(tokens_clone.clone(), Token::LeftParen, Token::Comma) {
                             Some(fqts) => fqts,
@@ -452,12 +450,12 @@ pub fn parse_expression<'a>(
                             Some(fqts) => fqts,
                             None => return Err(String::from("Couldn't find body tokens"))
                         };
-                        let mut body: Vec<Box<Expression>> = vec![];
+                        let mut body: Vec<Expression> = vec![];
                         let tokens_split_by_semicolon: Vec<Vec<FullyQualifiedToken>> =
                             split_by_semicolon_within_brackets(body_tokens);
 
                         for expression_tokens in tokens_split_by_semicolon.iter() {
-                            if expression_tokens.len() < 1 {
+                            if expression_tokens.is_empty() {
                                 continue;
                             }
                             match parse_expression(
@@ -465,7 +463,7 @@ pub fn parse_expression<'a>(
                                 previous_expression_with_initializer.clone(),
                                 local_params.clone(),
                             ) {
-                                Ok(exp) => body.push(Box::new(exp)),
+                                Ok(exp) => body.push(exp),
                                 Err(error) => return Err(error),
                             }
                         }
@@ -474,7 +472,7 @@ pub fn parse_expression<'a>(
                             initial_value: Box::new(initializer),
                             incrementor: Box::new(incrementor),
                             break_condition: Box::new(conditional),
-                            body: body
+                            body
                         })
                     }
                     value => {
