@@ -1,7 +1,7 @@
 import fn log(n: f32) console.log
 
 fn main(n: i32): void {
-    if ($n) { log(3.14) } { log(42) };
+    if (n) { log(3.14) } { log(42) };
 }
 
 export main main
