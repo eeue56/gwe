@@ -44,8 +44,8 @@ pub enum Expression {
     },
     IfStatement {
         predicate: Box<Expression>,
-        success: Box<Expression>,
-        fail: Box<Expression>,
+        success: Vec<Expression>,
+        fail: Vec<Expression>,
     },
     Boolean {
         value: bool,
@@ -383,25 +383,47 @@ pub fn parse_expression(
                             None => return Err(String::from("Couldn't find success tokens"))
                         };
 
-                        let success = match parse_expression(&mut success_tokens.iter(), previous_expressions.clone(), local_params.clone()) {
-                            Err(error) => return Err(error),
-                            Ok(v) => v,
-                        };
+                        let mut success: Vec<Expression> = vec![];
+                        let success_tokens_split_by_semicolon: Vec<Vec<FullyQualifiedToken>> =
+                            split_by_semicolon_within_brackets(success_tokens);
+
+                        for expression_tokens in success_tokens_split_by_semicolon.iter() {
+                            if expression_tokens.is_empty() {
+                                continue;
+                            }
+                            let exp = parse_expression(
+                                &mut expression_tokens.iter(),
+                                previous_expressions.clone(),
+                                local_params.clone(),
+                            )?;
+                            success.push(exp);
+                        }
 
                         let fail_tokens = match between_next_next(tokens_clone.clone(), Token::LeftBracket, Token::RightBracket) {
                             Some(fqts) => fqts,
                             None => return Err(String::from("Couldn't find fail tokens"))
                         };
 
-                        let fail = match parse_expression(&mut fail_tokens.iter(), previous_expressions.clone(), local_params.clone()) {
-                            Err(error) => return Err(error),
-                            Ok(v) => v,
-                        };
+                        let mut fail: Vec<Expression> = vec![];
+                        let fail_tokens_split_by_semicolon: Vec<Vec<FullyQualifiedToken>> =
+                            split_by_semicolon_within_brackets(fail_tokens);
+
+                        for expression_tokens in fail_tokens_split_by_semicolon.iter() {
+                            if expression_tokens.is_empty() {
+                                continue;
+                            }
+                            let exp = parse_expression(
+                                &mut expression_tokens.iter(),
+                                previous_expressions.clone(),
+                                local_params.clone(),
+                            )?;
+                            fail.push(exp);
+                        }
 
                         return Ok(Expression::IfStatement {
                             predicate: Box::new(predicate),
-                            success: Box::new(success),
-                            fail: Box::new(fail)
+                            success,
+                            fail
 
                         })
                     }

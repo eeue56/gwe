@@ -203,6 +203,17 @@ fn generate_expression(expression: Expression) -> String {
             success,
             fail,
         } => {
+            let success_expressions = success
+                .iter()
+                .map(|expression| generate_expression(expression.clone()))
+                .collect::<Vec<String>>()
+                .join("\n");
+
+            let fail_expressions = fail
+                .iter()
+                .map(|expression| generate_expression(expression.clone()))
+                .collect::<Vec<String>>()
+                .join("\n");
             format!(
                 "(if
   {}
@@ -214,8 +225,8 @@ fn generate_expression(expression: Expression) -> String {
   )
 )",
                 generate_expression(*predicate),
-                indent(indent(generate_expression(*success))),
-                indent(indent(generate_expression(*fail)))
+                indent(indent(success_expressions)),
+                indent(indent(fail_expressions))
             )
         }
         Expression::Boolean { value } => {

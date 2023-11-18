@@ -84,11 +84,27 @@ fn generate_expression(expression: Expression) -> String {
             success,
             fail,
         } => {
+            let success_expressions = success
+                .iter()
+                .map(|expression| format!("{};", generate_expression(expression.clone())))
+                .collect::<Vec<String>>()
+                .join("\n");
+
+            let fail_expressions = fail
+                .iter()
+                .map(|expression| format!("{};", generate_expression(expression.clone())))
+                .collect::<Vec<String>>()
+                .join("\n");
+
             format!(
-                "if ({}) {{ {} }} {{ {} }}",
+                "if ({}) {{
+{}
+}} else {{
+{}
+}}",
                 generate_expression(*predicate),
-                generate_expression(*success),
-                generate_expression(*fail)
+                indent(success_expressions),
+                indent(fail_expressions)
             )
         }
         Expression::Boolean { value } => format!("{}", value),
@@ -351,7 +367,11 @@ export main main",
             "import memory 1 js.mem
 
 fn main(): void {
-    if (0) { log(3.14) } { log(42) };
+    if (0) {
+        log(3.14);
+    } else {
+        log(42);
+    };
 }
 
 export main main",
@@ -371,7 +391,11 @@ export main main",
             "import memory 1 js.mem
 
 fn main(): void {
-    if (true) { log(true) } { log(false) };
+    if (true) {
+        log(true);
+    } else {
+        log(false);
+    };
 }
 
 export main main",
